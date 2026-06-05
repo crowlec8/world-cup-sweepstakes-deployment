@@ -1,5 +1,5 @@
-import ScoringRules from "../components/ScoringRules";
-import { calculateTeamScores } from "../utils/scoring";
+import ScoringRules from "../components/ScoringRules.jsx";
+import { calculateTeamScores } from "../utils/scoring.js";
 
 export default function LeaderboardPage({
   leaderboard,

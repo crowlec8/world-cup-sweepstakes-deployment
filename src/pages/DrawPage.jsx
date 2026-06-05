@@ -1,6 +1,6 @@
 
-import Slot from "../components/Slot";
-import ScoringRules from "../components/ScoringRules";
+import Slot from "../components/Slot.jsx";
+import ScoringRules from "../components/ScoringRules.jsx";
 
 export default function DrawPage({
   spinSlots,

@@ -1,5 +1,5 @@
 import ScoringRules from "../components/ScoringRules";
-import { calculateTeamScores } from "../utils/scoring";
+import { calculateTeamScores } from "../utils/scoring.js";
 
 export default function CountriesPage({ pools, goBack }) {
   const allTeams = [...new Set(pools.flat())];
