@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+
 import "./styles/main.css";
+
 import NamePage from "./pages/NamePage";
 import LeagueChoicePage from "./pages/LeagueChoicePage";
 import CreateLeaguePage from "./pages/CreateLeaguePage";
@@ -9,7 +11,9 @@ import LeaderboardPage from "./pages/LeaderboardPage";
 import CountriesPage from "./pages/CountriesPage";
 import AdminPage from "./pages/AdminPage";
 import AdminLoginPage from "./pages/AdminLoginPage";
+
 import ScoringRules from "./components/ScoringRules";
+
 import {
   createLeagueDB,
   getLeagueByCode,
@@ -17,7 +21,6 @@ import {
   addPlayerToLeague,
   clearLeaguePlayers,
 } from "./lib/leagueService";
-
 
 type View =
   | "name"
@@ -34,13 +37,6 @@ type Entry = {
   name: string;
   teams: string[];
   createdAt: string;
-};
-
-type League = {
-  id?: string;
-  name: string;
-  code: string;
-  players: Entry[];
 };
 
 const POOLS: string[][] = [
@@ -133,7 +129,8 @@ export default function App() {
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
   const [showRules, setShowRules] = useState(false);
 
-  const intervalRefs = useRef<ReturnType<typeof setInterval>[]>([]);
+  const intervalRefs = useRef<number[]>([]);
+
   const canContinue = nameInput.trim().length > 0;
 
   const currentEntry = useMemo(() => {
@@ -148,7 +145,7 @@ export default function App() {
 
   useEffect(() => {
     return () => {
-      intervalRefs.current.forEach((id) => clearInterval(id));
+      intervalRefs.current.forEach((id) => window.clearInterval(id));
     };
   }, []);
 
@@ -161,6 +158,7 @@ export default function App() {
     };
 
     syncPathToView();
+
     window.addEventListener("popstate", syncPathToView);
 
     return () => {
@@ -207,6 +205,7 @@ export default function App() {
   const handleBack = () => {
     if (view === "admin" || view === "adminLogin") {
       window.history.replaceState(null, "", "/");
+
       setView(
         playerName && leaguePassword
           ? "draw"
@@ -214,6 +213,7 @@ export default function App() {
           ? "leagueChoice"
           : "name"
       );
+
       return;
     }
 
@@ -225,6 +225,7 @@ export default function App() {
           ? "leagueChoice"
           : "name"
       );
+
       return;
     }
 
@@ -248,8 +249,11 @@ export default function App() {
   // ---------------------------------
   const startGame = (e: React.FormEvent) => {
     e.preventDefault();
+
     const cleanName = nameInput.trim();
+
     if (!cleanName) return;
+
     setPlayerName(cleanName);
     setView("leagueChoice");
   };
@@ -311,11 +315,9 @@ export default function App() {
     try {
       const league = await getLeagueByCode(cleanPassword);
 
-      
       if (!league) {
         return "not_found";
       }
-
 
       const players = await getPlayersByLeagueId(league.id);
 
@@ -373,13 +375,18 @@ export default function App() {
     let finalTeamsLocal: string[] = [];
     let combo = "";
     let attempts = 0;
+
     const maxAttempts = 10000;
 
     do {
-      finalIndexes = POOLS.map((pool) => Math.floor(Math.random() * pool.length));
+      finalIndexes = POOLS.map((pool) =>
+        Math.floor(Math.random() * pool.length)
+      );
+
       finalTeamsLocal = finalIndexes.map(
         (idx, poolIndex) => POOLS[poolIndex][idx]
       );
+
       combo = combinationKey(finalTeamsLocal);
       attempts += 1;
     } while (usedCombinations.has(combo) && attempts < maxAttempts);
@@ -395,6 +402,7 @@ export default function App() {
                 POOLS[2][k],
                 POOLS[3][l],
               ];
+
               const key = combinationKey(teams);
 
               if (!usedCombinations.has(key)) {
@@ -454,13 +462,14 @@ export default function App() {
       const { finalIndexes, finalTeamsLocal } = uniqueResult;
 
       setSpinning(true);
-      intervalRefs.current.forEach((id) => clearInterval(id));
+
+      intervalRefs.current.forEach((id) => window.clearInterval(id));
       intervalRefs.current = [];
 
       const maxSpinDuration = 1400 + (POOLS.length - 1) * 450;
 
       POOLS.forEach((pool, slotIndex) => {
-        const intervalId = setInterval(() => {
+        const intervalId = window.setInterval(() => {
           setDisplayIndexes((prev) => {
             const next = [...prev];
             next[slotIndex] = (next[slotIndex] + 1) % pool.length;
@@ -470,8 +479,9 @@ export default function App() {
 
         intervalRefs.current[slotIndex] = intervalId;
 
-        setTimeout(() => {
-          clearInterval(intervalId);
+        window.setTimeout(() => {
+          window.clearInterval(intervalId);
+
           setDisplayIndexes((prev) => {
             const next = [...prev];
             next[slotIndex] = finalIndexes[slotIndex];
@@ -480,7 +490,7 @@ export default function App() {
         }, 1400 + slotIndex * 450);
       });
 
-      setTimeout(async () => {
+      window.setTimeout(async () => {
         try {
           setSelectedTeams(finalTeamsLocal);
           setHasSpun(true);
@@ -489,6 +499,7 @@ export default function App() {
           await addPlayerToLeague(leagueId, playerName, finalTeamsLocal);
 
           const updatedPlayers = await getPlayersByLeagueId(leagueId);
+
           setLeaderboard(updatedPlayers);
         } catch (error) {
           console.error(error);
@@ -523,15 +534,14 @@ export default function App() {
       <div className="container">
         {/* Header */}
         <div className="header-row">
-          <div>
-            <div className="eyebrow">World Cup Sweepstakes</div>
+          <div className="title-area">
+            <div className="site-title-block">
+              <p className="site-kicker">FIFA World Cup 2026</p>
+              <h1 className="site-title">World Cup Sweepstakes</h1>
+            </div>
 
-            {view === "leaderboard" ||
-            view === "countries" ||
-            view === "admin" ? (
-              <h2>{pageTitle}</h2>
-            ) : (
-              <h1>{pageTitle}</h1>
+            {pageTitle && (
+              <h2 className="page-heading">{pageTitle}</h2>
             )}
           </div>
 
@@ -603,10 +613,7 @@ export default function App() {
         )}
 
         {view === "joinLeague" && (
-          <JoinLeaguePage
-            onJoin={handleJoinLeague}
-            playerName={playerName}
-          />
+          <JoinLeaguePage onJoin={handleJoinLeague} playerName={playerName} />
         )}
 
         {view === "draw" && (
@@ -622,10 +629,7 @@ export default function App() {
         )}
 
         {view === "leaderboard" && (
-          <LeaderboardPage
-            leaderboard={leaderboard}
-            playerName={playerName}
-          />
+          <LeaderboardPage leaderboard={leaderboard} playerName={playerName} />
         )}
 
         {view === "countries" && (
@@ -644,21 +648,24 @@ export default function App() {
       {showRules && (
         <div
           className="rules-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="rules-modal-title"
           onClick={() => setShowRules(false)}
         >
-          <div
-            className="rules-modal"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2>Scoring Rules</h2>
-            <ScoringRules />
+          <div className="rules-modal" onClick={(e) => e.stopPropagation()}>
             <button
-              className="btn btn-secondary"
-              style={{ marginTop: 20 }}
+              type="button"
+              className="rules-close-button"
+              aria-label="Close rules"
               onClick={() => setShowRules(false)}
             >
-              Close
+              ×
             </button>
+
+            <h2 id="rules-modal-title">How the Sweepstakes Works</h2>
+
+            <ScoringRules />
           </div>
         </div>
       )}
