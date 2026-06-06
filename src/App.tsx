@@ -6,6 +6,7 @@ import NamePage from "./pages/NamePage";
 import LeagueChoicePage from "./pages/LeagueChoicePage";
 import CreateLeaguePage from "./pages/CreateLeaguePage";
 import JoinLeaguePage from "./pages/JoinLeaguePage";
+import ViewExistingLeaguePage from "./pages/ViewExistingLeaguePage";
 import DrawPage from "./pages/DrawPage";
 import LeaderboardPage from "./pages/LeaderboardPage";
 import CountriesPage from "./pages/CountriesPage";
@@ -27,6 +28,7 @@ type View =
   | "leagueChoice"
   | "createLeague"
   | "joinLeague"
+  | "viewExistingLeague"
   | "draw"
   | "leaderboard"
   | "countries"
@@ -194,6 +196,8 @@ export default function App() {
       ? "Create a League"
       : view === "joinLeague"
       ? "Join a League"
+      : view === "viewExistingLeague"
+      ? "View Existing League"
       : view === "draw"
       ? leagueName
         ? `${leagueName} Sweepstakes Draw`
@@ -252,8 +256,12 @@ export default function App() {
       return;
     }
 
-    if (view === "createLeague" || view === "joinLeague") {
-      setView("leagueChoice");
+    if (
+      view === "createLeague" ||
+      view === "joinLeague" ||
+      view === "viewExistingLeague"
+    ) {
+      setView(playerName ? "leagueChoice" : "name");
       return;
     }
 
@@ -339,37 +347,87 @@ export default function App() {
 
       const players = await getPlayersByLeagueId(league.id);
 
-      setLeagueId(league.id);
-      setLeaguePassword(cleanPassword);
-      setLeagueName(league.name);
-      setLeaderboard(players);
-
       const existingPlayer = players.find(
         (player: Entry) =>
           player.name.toLowerCase() === playerName.toLowerCase()
       );
 
       if (existingPlayer) {
-        setSelectedTeams(existingPlayer.teams || [null, null, null, null]);
-        setHasSpun(true);
-        setDisplayIndexes(
-          (existingPlayer.teams || []).map((team, poolIndex) => {
-            const idx = POOLS[poolIndex]?.indexOf(team);
-            return idx >= 0 ? idx : 0;
-          })
-        );
-        setView("leaderboard");
-        return;
+        return "already_joined";
       }
 
+      setLeagueId(league.id);
+      setLeaguePassword(cleanPassword);
+      setLeagueName(league.name);
+      setLeaderboard(players);
       setSelectedTeams([null, null, null, null]);
       setDisplayIndexes([0, 0, 0, 0]);
       setHasSpun(false);
       setSpinning(false);
       setView("draw");
+
+      return "success";
     } catch (error) {
       console.error(error);
       alert("There was a problem joining the league.");
+      return "error";
+    }
+  };
+
+  // ---------------------------------
+  // View existing league
+  // ---------------------------------
+  const handleViewExistingLeague = async (
+    nameInputValue: string,
+    passwordInput: string
+  ) => {
+    const cleanName = nameInputValue.trim();
+    const cleanPassword = passwordInput.trim();
+
+    if (!cleanName || !cleanPassword) {
+      return "missing";
+    }
+
+    try {
+      const league = await getLeagueByCode(cleanPassword);
+
+      if (!league) {
+        return "not_found";
+      }
+
+      const players = await getPlayersByLeagueId(league.id);
+
+      const existingPlayer = players.find(
+        (player: Entry) => player.name.toLowerCase() === cleanName.toLowerCase()
+      );
+
+      if (!existingPlayer) {
+        return "player_not_found";
+      }
+
+      setPlayerName(existingPlayer.name);
+      setNameInput(existingPlayer.name);
+      setLeagueId(league.id);
+      setLeaguePassword(cleanPassword);
+      setLeagueName(league.name);
+      setLeaderboard(players);
+      setSelectedTeams(existingPlayer.teams || [null, null, null, null]);
+      setHasSpun(true);
+      setSpinning(false);
+
+      setDisplayIndexes(
+        (existingPlayer.teams || []).map((team, poolIndex) => {
+          const idx = POOLS[poolIndex]?.indexOf(team);
+          return idx >= 0 ? idx : 0;
+        })
+      );
+
+      setView("leaderboard");
+
+      return "success";
+    } catch (error) {
+      console.error(error);
+      return "error";
     }
   };
 
@@ -558,9 +616,7 @@ export default function App() {
               <h1 className="site-title">World Cup Sweepstakes</h1>
             </div>
 
-            {pageTitle && (
-              <h2 className="page-heading">{pageTitle}</h2>
-            )}
+            {pageTitle && <h2 className="page-heading">{pageTitle}</h2>}
           </div>
 
           <div className="toolbar">
@@ -616,6 +672,7 @@ export default function App() {
             setNameInput={setNameInput}
             startGame={startGame}
             canContinue={canContinue}
+            onViewExistingLeague={() => setView("viewExistingLeague")}
           />
         )}
 
@@ -623,6 +680,7 @@ export default function App() {
           <LeagueChoicePage
             onCreate={() => setView("createLeague")}
             onJoin={() => setView("joinLeague")}
+            onViewExistingLeague={() => setView("viewExistingLeague")}
           />
         )}
 
@@ -634,7 +692,18 @@ export default function App() {
         )}
 
         {view === "joinLeague" && (
-          <JoinLeaguePage onJoin={handleJoinLeague} playerName={playerName} />
+          <JoinLeaguePage
+            onJoin={handleJoinLeague}
+            playerName={playerName}
+            onViewExistingLeague={() => setView("viewExistingLeague")}
+          />
+        )}
+
+        {view === "viewExistingLeague" && (
+          <ViewExistingLeaguePage
+            initialName={playerName || nameInput}
+            onViewExistingLeague={handleViewExistingLeague}
+          />
         )}
 
         {view === "draw" && (
@@ -657,9 +726,7 @@ export default function App() {
           <CountriesPage pools={POOLS} goBack={handleBack} />
         )}
 
-        {view === "adminLogin" && (
-          <AdminLoginPage onLogin={handleAdminLogin} />
-        )}
+        {view === "adminLogin" && <AdminLoginPage onLogin={handleAdminLogin} />}
 
         {view === "admin" && isAdminAuthenticated && (
           <AdminPage goBack={handleBack} />
