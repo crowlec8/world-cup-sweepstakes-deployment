@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-export default function JoinLeaguePage({ onJoin }) {
+export default function JoinLeaguePage({ onJoin, playerName }) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 

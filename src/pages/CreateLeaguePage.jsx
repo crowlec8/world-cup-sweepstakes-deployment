@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-export default function CreateLeaguePage({ onCreate }) {
+export default function CreateLeaguePage({ onCreate, playerName }) {
   const [leagueName, setLeagueName] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");

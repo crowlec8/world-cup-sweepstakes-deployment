@@ -1,5 +1,6 @@
 
-export default function Slot({ label, teams, displayIndex, spinning, finalised }) {
+
+export default function Slot({ label, teams, displayIndex, spinning, finalised}) {
   const current = teams[displayIndex % teams.length];
 
   return (

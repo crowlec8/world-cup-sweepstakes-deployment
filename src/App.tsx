@@ -1,22 +1,22 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import "./styles/main.css";
-import NamePage from "./pages/NamePage.jsx";
-import LeagueChoicePage from "./pages/LeagueChoicePage.jsx";
-import CreateLeaguePage from "./pages/CreateLeaguePage.jsx";
-import JoinLeaguePage from "./pages/JoinLeaguePage.jsx";
-import DrawPage from "./pages/DrawPage.jsx";
-import LeaderboardPage from "./pages/LeaderboardPage.jsx";
-import CountriesPage from "./pages/CountriesPage.jsx";
-import AdminPage from "./pages/AdminPage.jsx";
-import AdminLoginPage from "./pages/AdminLoginPage.jsx";
-import ScoringRules from "./components/ScoringRules.jsx";
+import NamePage from "./pages/NamePage";
+import LeagueChoicePage from "./pages/LeagueChoicePage";
+import CreateLeaguePage from "./pages/CreateLeaguePage";
+import JoinLeaguePage from "./pages/JoinLeaguePage";
+import DrawPage from "./pages/DrawPage";
+import LeaderboardPage from "./pages/LeaderboardPage";
+import CountriesPage from "./pages/CountriesPage";
+import AdminPage from "./pages/AdminPage";
+import AdminLoginPage from "./pages/AdminLoginPage";
+import ScoringRules from "./components/ScoringRules";
 import {
   createLeagueDB,
   getLeagueByCode,
   getPlayersByLeagueId,
   addPlayerToLeague,
   clearLeaguePlayers,
-} from "./lib/leagueServicets";
+} from "./lib/leagueService";
 
 type View =
   | "name"

@@ -8,6 +8,8 @@ export default function DrawPage({
   hasSpun,
   displayIndexes,
   pools,
+  slotLabels,
+  currentEntry,
 }) {
   return (
     <section className="panel hero">
