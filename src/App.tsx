@@ -18,6 +18,7 @@ import {
   clearLeaguePlayers,
 } from "./lib/leagueService";
 
+
 type View =
   | "name"
   | "leagueChoice"
