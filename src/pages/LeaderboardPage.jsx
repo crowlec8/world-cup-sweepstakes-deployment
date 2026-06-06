@@ -99,8 +99,6 @@ export default function LeaderboardPage({ leaderboard, playerName }) {
       )}
 
       <p className="page-note">Scores will be updated daily.</p>
-
-      <ScoringRules />
     </section>
   );
 }
