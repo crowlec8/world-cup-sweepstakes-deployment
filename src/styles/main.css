@@ -336,6 +336,49 @@ td {
   color: #94a3b8;
 }
 
+/* Leaderboard background clean-up
+   This removes the dark rectangle/pseudo-layer behind the leaderboard cards. */
+
+.leaderboard-page {
+  position: relative;
+  isolation: auto !important;
+  overflow: visible !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.leaderboard-page::before,
+.leaderboard-page::after {
+  content: none !important;
+  display: none !important;
+  background: none !important;
+  background-image: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+.leaderboard-page .responsive-table-shell,
+.leaderboard-page .leaderboard-table-shell,
+.leaderboard-page .responsive-table,
+.leaderboard-page .leaderboard-table,
+.leaderboard-page table,
+.leaderboard-page thead,
+.leaderboard-page tbody {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Keep individual user rows/cards visible */
+.leaderboard-page tr,
+.leaderboard-page .leaderboard-card {
+  background: rgba(8, 24, 44, 0.86);
+}
+
 /* Slot animation */
 .slot-single {
   height: 100%;

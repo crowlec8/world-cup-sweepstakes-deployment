@@ -24,7 +24,11 @@ export default function NamePage({
           style={{ marginTop: 12 }}
         />
 
-        <button className="btn btn-primary" type="submit" disabled={!canContinue}>
+        <button
+          className="btn btn-primary"
+          type="submit"
+          disabled={!canContinue}
+        >
           Continue
         </button>
       </form>
@@ -39,7 +43,8 @@ export default function NamePage({
         <h2 style={{ fontSize: "1.35rem" }}>Already in a league?</h2>
 
         <p className="subtext">
-          View an existing league by entering your name and league password.
+          If you have already joined a league, you can go straight to that
+          league's leaderboard by entering your name and league password.
         </p>
 
         <button
