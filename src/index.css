@@ -400,3 +400,99 @@ code {
     padding-inline: 6px;
   }
 }
+
+/* Leaderboard desktop polish */
+
+.leaderboard-page {
+  position: relative;
+  isolation: isolate;
+  padding-top: 24px;
+  border-radius: 24px;
+  overflow: hidden;
+}
+
+.leaderboard-page::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(5, 18, 32, 0.72), rgba(5, 18, 32, 0.72)),
+    url("/worldcup.png");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: min(520px, 85%);
+  opacity: 0.9;
+  z-index: -1;
+}
+
+.leaderboard-page .responsive-table th {
+  color: #ffffff;
+  background: transparent;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.65);
+}
+
+.leaderboard-page .responsive-table tbody tr {
+  background: rgba(8, 24, 44, 0.82);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(3px);
+}
+
+.leaderboard-page .responsive-table tbody tr:hover {
+  background: rgba(12, 34, 62, 0.9);
+  transform: translateY(-1px);
+}
+
+.leaderboard-page .responsive-table tbody td {
+  color: #f3f7ff;
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.leaderboard-page .responsive-table tbody td:first-child {
+  border-left: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.leaderboard-page .responsive-table tbody td:last-child {
+  border-right: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.leaderboard-page .leaderboard-table td:nth-child(2) {
+  color: #ffffff;
+  font-weight: 800;
+}
+
+.leaderboard-page .leaderboard-table td:last-child {
+  color: #ffd166;
+  font-weight: 900;
+}
+
+.leaderboard-page .page-note,
+.leaderboard-page > p {
+  color: #ffffff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.65);
+}
+
+/* Keep the mobile card layout readable */
+@media (max-width: 768px) {
+  .leaderboard-page {
+    border-radius: 0;
+    overflow: visible;
+  }
+
+  .leaderboard-page::before {
+    background-size: min(360px, 90%);
+    opacity: 0.55;
+  }
+
+  .leaderboard-page .responsive-table td::before {
+    color: #ffffff;
+  }
+
+  .leaderboard-page .responsive-table tbody tr {
+    background: rgba(8, 24, 44, 0.86);
+  }
+
+  .leaderboard-page .responsive-table tbody td {
+    color: #f3f7ff;
+  }
+}
