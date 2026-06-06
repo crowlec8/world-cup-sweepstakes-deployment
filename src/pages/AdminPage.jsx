@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { calculateTeamScores } from "../utils/scoring.js";
 import { updateCountryScores } from "../lib/countryScoreService";
+import { getAdminMatches, saveAdminMatches } from "../lib/matchService";
 
 // 72 group stage match keys
 const GROUP_STAGE_KEYS = Array.from({ length: 72 }, (_, i) => `GROUP-${i + 1}`);
@@ -91,57 +92,162 @@ const GROUP_FIXTURES = [
   ["DR Congo", "Uzbekistan"],
 ];
 
+function createInitialMatches() {
+  const initial = {};
+
+  GROUP_STAGE_KEYS.forEach((key, i) => {
+    const fixture = GROUP_FIXTURES[i];
+
+    initial[key] = {
+      home: fixture ? fixture[0] : "",
+      away: fixture ? fixture[1] : "",
+      homeScore: 0,
+      awayScore: 0,
+      homePens: false,
+      awayPens: false,
+    };
+  });
+
+  MATCH_TEMPLATE.forEach((key) => {
+    initial[key] = {
+      home: "",
+      away: "",
+      homeScore: 0,
+      awayScore: 0,
+      homePens: false,
+      awayPens: false,
+    };
+  });
+
+  return initial;
+}
+
+function mergeSavedRowsIntoInitialMatches(savedRows) {
+  const initial = createInitialMatches();
+
+  savedRows.forEach((row) => {
+    const key = row.match_key;
+
+    if (!initial[key]) {
+      return;
+    }
+
+    const isGroupMatch = key.startsWith("GROUP");
+
+    initial[key] = {
+      ...initial[key],
+      home: isGroupMatch ? initial[key].home : row.home || "",
+      away: isGroupMatch ? initial[key].away : row.away || "",
+      homeScore: Number(row.home_score || 0),
+      awayScore: Number(row.away_score || 0),
+      homePens: Boolean(row.home_pens),
+      awayPens: Boolean(row.away_pens),
+    };
+  });
+
+  return initial;
+}
+
+function mergeLocalStorageIntoInitialMatches(localMatches) {
+  const initial = createInitialMatches();
+
+  Object.entries(localMatches || {}).forEach(([key, match]) => {
+    if (!initial[key]) {
+      return;
+    }
+
+    const isGroupMatch = key.startsWith("GROUP");
+
+    initial[key] = {
+      ...initial[key],
+      home: isGroupMatch ? initial[key].home : match.home || "",
+      away: isGroupMatch ? initial[key].away : match.away || "",
+      homeScore: Number(match.homeScore || 0),
+      awayScore: Number(match.awayScore || 0),
+      homePens: Boolean(match.homePens),
+      awayPens: Boolean(match.awayPens),
+    };
+  });
+
+  return initial;
+}
+
 export default function AdminPage({ goBack }) {
   const [matches, setMatches] = useState({});
+  const [loadingMatches, setLoadingMatches] = useState(true);
   const [savingScores, setSavingScores] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
   const [saveError, setSaveError] = useState("");
 
   useEffect(() => {
-    const stored = localStorage.getItem("matches");
-    const initial = {};
+    let isMounted = true;
 
-    GROUP_STAGE_KEYS.forEach((key, i) => {
-      const fixture = GROUP_FIXTURES[i];
+    const loadMatches = async () => {
+      setLoadingMatches(true);
+      setSaveMessage("");
+      setSaveError("");
 
-      initial[key] = {
-        home: fixture ? fixture[0] : "",
-        away: fixture ? fixture[1] : "",
-        homeScore: 0,
-        awayScore: 0,
-        homePens: false,
-        awayPens: false,
-      };
-    });
+      try {
+        const savedRows = await getAdminMatches();
 
-    MATCH_TEMPLATE.forEach((key) => {
-      initial[key] = {
-        home: "",
-        away: "",
-        homeScore: 0,
-        awayScore: 0,
-        homePens: false,
-        awayPens: false,
-      };
-    });
+        if (!isMounted) {
+          return;
+        }
 
-    if (stored) {
-      const existing = JSON.parse(stored);
+        if (savedRows.length > 0) {
+          setMatches(mergeSavedRowsIntoInitialMatches(savedRows));
+          return;
+        }
 
-      setMatches({
-        ...initial,
-        ...existing,
-      });
-    } else {
-      setMatches(initial);
-    }
+        const stored = localStorage.getItem("matches");
+
+        if (stored) {
+          const localMatches = JSON.parse(stored);
+          setMatches(mergeLocalStorageIntoInitialMatches(localMatches));
+          setSaveMessage(
+            "Loaded locally saved match data. Click Update Supabase Scores once to sync these match results across devices."
+          );
+          return;
+        }
+
+        setMatches(createInitialMatches());
+      } catch (error) {
+        console.error(error);
+
+        if (!isMounted) {
+          return;
+        }
+
+        const stored = localStorage.getItem("matches");
+
+        if (stored) {
+          try {
+            const localMatches = JSON.parse(stored);
+            setMatches(mergeLocalStorageIntoInitialMatches(localMatches));
+            setSaveError(
+              "Could not load saved matches from Supabase, so local browser data was loaded instead."
+            );
+          } catch {
+            setMatches(createInitialMatches());
+            setSaveError("Could not load saved matches from Supabase.");
+          }
+        } else {
+          setMatches(createInitialMatches());
+          setSaveError("Could not load saved matches from Supabase.");
+        }
+      } finally {
+        if (isMounted) {
+          setLoadingMatches(false);
+        }
+      }
+    };
+
+    loadMatches();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
-
-  useEffect(() => {
-    if (Object.keys(matches).length > 0) {
-      localStorage.setItem("matches", JSON.stringify(matches));
-    }
-  }, [matches]);
 
   const updateMatch = (key, field, value) => {
     setSaveMessage("");
@@ -180,10 +286,16 @@ export default function AdminPage({ goBack }) {
     setSaveError("");
 
     try {
-      const calculatedScores = calculateTeamScores(matches);
-      const { updatedRows, missingTeams } = await updateCountryScores(calculatedScores);
+      await saveAdminMatches(matches);
 
-      let message = `Scores updated successfully for ${updatedRows.length} countries.`;
+      const calculatedScores = calculateTeamScores(matches);
+      const { updatedRows, missingTeams } = await updateCountryScores(
+        calculatedScores
+      );
+
+      localStorage.setItem("matches", JSON.stringify(matches));
+
+      let message = `Match results saved and scores updated successfully for ${updatedRows.length} countries.`;
 
       if (missingTeams.length > 0) {
         message += ` These teams were not found in Supabase and were skipped: ${[
@@ -195,22 +307,37 @@ export default function AdminPage({ goBack }) {
     } catch (error) {
       console.error(error);
       setSaveError(
-        error?.message || "There was a problem updating the scores in Supabase."
+        error?.message ||
+          "There was a problem saving the match results or updating the scores in Supabase."
       );
     } finally {
       setSavingScores(false);
     }
   };
 
+  if (loadingMatches) {
+    return (
+      <section className="page-section admin-page">
+        <h2>Admin - Fixtures & Results</h2>
+
+        <p className="page-intro">Loading saved match results...</p>
+
+        <button type="button" onClick={goBack}>
+          Back
+        </button>
+      </section>
+    );
+  }
+
   return (
     <section className="page-section admin-page">
       <h2>Admin - Fixtures & Results</h2>
 
       <p className="page-intro">
-        Enter scores for the group matches and both teams plus scores for the knockout
-        rounds. Group stage team names are locked because they are pre-filled. For the
-        3rd place playoff and Final, if the match ends level you can use the Pens
-        buttons to select the winner on penalties.
+        Enter scores for the group matches and both teams plus scores for the
+        knockout rounds. Group stage team names are locked because they are
+        pre-filled. For the 3rd place playoff and Final, if the match ends level
+        you can use the Pens buttons to select the winner on penalties.
       </p>
 
       <div className="admin-toolbar">
