@@ -202,17 +202,6 @@ export default function AdminPage({ goBack }) {
     }
   };
 
-  const clearAllStorage = () => {
-    const confirmClear = window.confirm(
-      "Are you sure you want to clear ALL local storage? This will reset locally saved match entries on this browser. Supabase scores will not be cleared unless you click Update Supabase Scores afterwards."
-    );
-
-    if (!confirmClear) return;
-
-    localStorage.clear();
-    window.location.reload();
-  };
-
   return (
     <section className="page-section admin-page">
       <h2>Admin - Fixtures & Results</h2>
@@ -227,10 +216,6 @@ export default function AdminPage({ goBack }) {
       <div className="admin-toolbar">
         <button type="button" onClick={goBack}>
           Back
-        </button>
-
-        <button type="button" onClick={clearAllStorage}>
-          Clear Storage
         </button>
 
         <button

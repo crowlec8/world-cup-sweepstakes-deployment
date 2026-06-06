@@ -80,8 +80,6 @@ export default function CountriesPage({ pools, goBack }) {
       </table>
 
       <p>Country points update daily.</p>
-
-      <ScoringRules />
     </>
   );
 }
