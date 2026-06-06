@@ -56,7 +56,7 @@ const POOLS: string[][] = [
   ],
   [
     "Norway",
-    "Belguim",
+    "Belgium",
     "Colombia",
     "Japan",
     "Morocco",
@@ -75,7 +75,7 @@ const POOLS: string[][] = [
     "Austria",
     "Paraguay",
     "Scotland",
-    "Bosnia and Hezegovina",
+    "Bosnia and Herzegovina",
     "Ivory Coast",
     "Egypt",
     "Czechia",

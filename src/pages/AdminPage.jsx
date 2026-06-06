@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { calculateTeamScores } from "../utils/scoring.js";
+import { updateCountryScores } from "../lib/countryScoreService";
 
 // 72 group stage match keys
 const GROUP_STAGE_KEYS = Array.from({ length: 72 }, (_, i) => `GROUP-${i + 1}`);
@@ -13,23 +15,23 @@ const MATCH_TEMPLATE = [
   "FINAL",
 ];
 
-// Group stage fixtures in order
+// Team names here must exactly match scores.team in Supabase
 const GROUP_FIXTURES = [
   ["Mexico", "South Africa"],
-  ["Korea Republic", "Czechia"],
+  ["South Korea", "Czechia"],
   ["Canada", "Bosnia and Herzegovina"],
   ["USA", "Paraguay"],
   ["Haiti", "Scotland"],
-  ["Australia", "Türkiye"],
+  ["Australia", "Turkey"],
   ["Brazil", "Morocco"],
   ["Qatar", "Switzerland"],
-  ["Côte d'Ivoire", "Ecuador"],
-  ["Germany", "Curaçao"],
+  ["Ivory Coast", "Ecuador"],
+  ["Germany", "Curacao"],
   ["Netherlands", "Japan"],
   ["Sweden", "Tunisia"],
   ["Saudi Arabia", "Uruguay"],
-  ["Spain", "Cabo Verde"],
-  ["IR Iran", "New Zealand"],
+  ["Spain", "Cape Verde"],
+  ["Iran", "New Zealand"],
   ["Belgium", "Egypt"],
   ["France", "Senegal"],
   ["Iraq", "Norway"],
@@ -37,23 +39,23 @@ const GROUP_FIXTURES = [
   ["Austria", "Jordan"],
   ["Ghana", "Panama"],
   ["England", "Croatia"],
-  ["Portugal", "Congo DR"],
+  ["Portugal", "DR Congo"],
   ["Uzbekistan", "Colombia"],
   ["Czechia", "South Africa"],
   ["Switzerland", "Bosnia and Herzegovina"],
   ["Canada", "Qatar"],
-  ["Mexico", "Korea Republic"],
+  ["Mexico", "South Korea"],
   ["Brazil", "Haiti"],
   ["Scotland", "Morocco"],
-  ["Türkiye", "Paraguay"],
+  ["Turkey", "Paraguay"],
   ["USA", "Australia"],
-  ["Germany", "Côte d'Ivoire"],
-  ["Ecuador", "Curaçao"],
+  ["Germany", "Ivory Coast"],
+  ["Ecuador", "Curacao"],
   ["Netherlands", "Sweden"],
   ["Tunisia", "Japan"],
-  ["Uruguay", "Cabo Verde"],
+  ["Uruguay", "Cape Verde"],
   ["Spain", "Saudi Arabia"],
-  ["Belgium", "IR Iran"],
+  ["Belgium", "Iran"],
   ["New Zealand", "Egypt"],
   ["Norway", "Senegal"],
   ["France", "Iraq"],
@@ -62,42 +64,43 @@ const GROUP_FIXTURES = [
   ["England", "Ghana"],
   ["Panama", "Croatia"],
   ["Portugal", "Uzbekistan"],
-  ["Colombia", "Congo DR"],
+  ["Colombia", "DR Congo"],
   ["Scotland", "Brazil"],
   ["Morocco", "Haiti"],
   ["Switzerland", "Canada"],
   ["Bosnia and Herzegovina", "Qatar"],
   ["Czechia", "Mexico"],
-  ["South Africa", "Korea Republic"],
-  ["Curaçao", "Côte d'Ivoire"],
+  ["South Africa", "South Korea"],
+  ["Curacao", "Ivory Coast"],
   ["Ecuador", "Germany"],
   ["Japan", "Sweden"],
   ["Tunisia", "Netherlands"],
-  ["Türkiye", "USA"],
+  ["Turkey", "USA"],
   ["Paraguay", "Australia"],
   ["Norway", "France"],
   ["Senegal", "Iraq"],
-  ["Egypt", "IR Iran"],
+  ["Egypt", "Iran"],
   ["New Zealand", "Belgium"],
-  ["Cabo Verde", "Saudi Arabia"],
+  ["Cape Verde", "Saudi Arabia"],
   ["Uruguay", "Spain"],
   ["Panama", "England"],
   ["Croatia", "Ghana"],
   ["Algeria", "Austria"],
   ["Jordan", "Argentina"],
   ["Colombia", "Portugal"],
-  ["Congo DR", "Uzbekistan"],
+  ["DR Congo", "Uzbekistan"],
 ];
 
 export default function AdminPage({ goBack }) {
   const [matches, setMatches] = useState({});
+  const [savingScores, setSavingScores] = useState(false);
+  const [saveMessage, setSaveMessage] = useState("");
+  const [saveError, setSaveError] = useState("");
 
   useEffect(() => {
     const stored = localStorage.getItem("matches");
-
     const initial = {};
 
-    // Group stage matches with preset teams
     GROUP_STAGE_KEYS.forEach((key, i) => {
       const fixture = GROUP_FIXTURES[i];
 
@@ -111,7 +114,6 @@ export default function AdminPage({ goBack }) {
       };
     });
 
-    // Knockout matches
     MATCH_TEMPLATE.forEach((key) => {
       initial[key] = {
         home: "",
@@ -142,6 +144,9 @@ export default function AdminPage({ goBack }) {
   }, [matches]);
 
   const updateMatch = (key, field, value) => {
+    setSaveMessage("");
+    setSaveError("");
+
     setMatches((prev) => ({
       ...prev,
       [key]: {
@@ -152,6 +157,9 @@ export default function AdminPage({ goBack }) {
   };
 
   const togglePens = (key, side) => {
+    setSaveMessage("");
+    setSaveError("");
+
     setMatches((prev) => {
       const match = prev[key];
 
@@ -166,9 +174,37 @@ export default function AdminPage({ goBack }) {
     });
   };
 
+  const saveScoresToSupabase = async () => {
+    setSavingScores(true);
+    setSaveMessage("");
+    setSaveError("");
+
+    try {
+      const calculatedScores = calculateTeamScores(matches);
+      const { updatedRows, missingTeams } = await updateCountryScores(calculatedScores);
+
+      let message = `Scores updated successfully for ${updatedRows.length} countries.`;
+
+      if (missingTeams.length > 0) {
+        message += ` These teams were not found in Supabase and were skipped: ${[
+          ...new Set(missingTeams),
+        ].join(", ")}.`;
+      }
+
+      setSaveMessage(message);
+    } catch (error) {
+      console.error(error);
+      setSaveError(
+        error?.message || "There was a problem updating the scores in Supabase."
+      );
+    } finally {
+      setSavingScores(false);
+    }
+  };
+
   const clearAllStorage = () => {
     const confirmClear = window.confirm(
-      "Are you sure you want to clear ALL local storage? This will reset leagues, matches, and leaderboard data."
+      "Are you sure you want to clear ALL local storage? This will reset locally saved match entries on this browser. Supabase scores will not be cleared unless you click Update Supabase Scores afterwards."
     );
 
     if (!confirmClear) return;
@@ -178,157 +214,147 @@ export default function AdminPage({ goBack }) {
   };
 
   return (
-    <section className="panel hero">
+    <>
       <h2>Admin - Fixtures & Results</h2>
 
-      <p className="subtext">
-        Enter scores for the group matches and both teams plus scores for the knockout rounds.
-        Group stage team names are locked because they are pre-filled. For the 3rd place playoff
-        and Final, if the match ends level you can use the Pens buttons to select the winner on penalties.
+      <p>
+        Enter scores for the group matches and both teams plus scores for the knockout
+        rounds. Group stage team names are locked because they are pre-filled. For the
+        3rd place playoff and Final, if the match ends level you can use the Pens
+        buttons to select the winner on penalties.
       </p>
 
-      <div className="toolbar" style={{ marginTop: 16, marginBottom: 16 }}>
-        <button className="btn btn-secondary" onClick={goBack}>
+      <div style={{ display: "flex", gap: "12px", marginBottom: "16px" }}>
+        <button type="button" onClick={goBack}>
           Back
         </button>
 
-        <button className="btn btn-danger" onClick={clearAllStorage}>
+        <button type="button" onClick={clearAllStorage}>
           Clear Storage
+        </button>
+
+        <button
+          type="button"
+          onClick={saveScoresToSupabase}
+          disabled={savingScores}
+        >
+          {savingScores ? "Updating..." : "Update Supabase Scores"}
         </button>
       </div>
 
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Match</th>
-              <th>Home</th>
-              <th>Score</th>
-              <th>Away</th>
-            </tr>
-          </thead>
+      {saveMessage && (
+        <p style={{ color: "green", fontWeight: "bold" }}>{saveMessage}</p>
+      )}
 
-          <tbody>
-            {[...GROUP_STAGE_KEYS, ...MATCH_TEMPLATE].map((key) => {
-              const match = matches[key];
-              if (!match) return null;
+      {saveError && (
+        <p style={{ color: "crimson", fontWeight: "bold" }}>{saveError}</p>
+      )}
 
-              const isGroupMatch = key.startsWith("GROUP");
-              const isPensMatch = key === "3RD" || key === "FINAL";
-              const isDraw = Number(match.homeScore) === Number(match.awayScore);
+      <table>
+        <thead>
+          <tr>
+            <th>Match</th>
+            <th>Home</th>
+            <th>Score</th>
+            <th>Away</th>
+          </tr>
+        </thead>
 
-              return (
-                <tr key={key}>
-                  <td>
-                    {isGroupMatch ? `Group Match ${key.split("-")[1]}` : key}
-                  </td>
+        <tbody>
+          {[...GROUP_STAGE_KEYS, ...MATCH_TEMPLATE].map((key) => {
+            const match = matches[key];
 
-                  <td>
+            if (!match) return null;
+
+            const isGroupMatch = key.startsWith("GROUP");
+            const isPensMatch = key === "3RD" || key === "FINAL";
+            const isDraw = Number(match.homeScore) === Number(match.awayScore);
+
+            return (
+              <tr key={key}>
+                <td>
+                  {isGroupMatch ? `Group Match ${key.split("-")[1]}` : key}
+                </td>
+
+                <td>
+                  <input
+                    type="text"
+                    value={match.home}
+                    disabled={isGroupMatch}
+                    onChange={(e) => updateMatch(key, "home", e.target.value)}
+                  />
+                </td>
+
+                <td>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "8px",
+                    }}
+                  >
                     <input
-                      className="input"
-                      value={match.home}
-                      disabled={isGroupMatch}
-                      onChange={(e) => updateMatch(key, "home", e.target.value)}
+                      type="number"
+                      min="0"
+                      value={match.homeScore}
+                      onChange={(e) =>
+                        updateMatch(key, "homeScore", Number(e.target.value))
+                      }
+                      style={{ width: "70px", textAlign: "center" }}
                     />
-                  </td>
 
-                  <td>
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: "12px",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      {/* Home score + pens */}
-                      <div
+                    {isPensMatch && isDraw && (
+                      <button
+                        type="button"
+                        onClick={() => togglePens(key, "home")}
                         style={{
-                          display: "flex",
-                          flexDirection: "column",
-                          alignItems: "center",
+                          fontWeight: match.homePens ? "bold" : "normal",
                         }}
                       >
-                        <input
-                          className="input"
-                          type="number"
-                          value={match.homeScore}
-                          onChange={(e) =>
-                            updateMatch(key, "homeScore", Number(e.target.value))
-                          }
-                          style={{ width: "70px", textAlign: "center" }}
-                        />
+                        Pens
+                      </button>
+                    )}
 
-                        {isPensMatch && isDraw && (
-                          <button
-                            type="button"
-                            className="btn btn-secondary"
-                            style={{
-                              marginTop: "4px",
-                              padding: "6px 10px",
-                              background: match.homePens ? "#22c55e" : undefined,
-                              color: match.homePens ? "white" : undefined,
-                            }}
-                            onClick={() => togglePens(key, "home")}
-                          >
-                            Pens
-                          </button>
-                        )}
-                      </div>
+                    <span>-</span>
 
-                      <span style={{ fontWeight: "bold" }}>-</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={match.awayScore}
+                      onChange={(e) =>
+                        updateMatch(key, "awayScore", Number(e.target.value))
+                      }
+                      style={{ width: "70px", textAlign: "center" }}
+                    />
 
-                      {/* Away score + pens */}
-                      <div
+                    {isPensMatch && isDraw && (
+                      <button
+                        type="button"
+                        onClick={() => togglePens(key, "away")}
                         style={{
-                          display: "flex",
-                          flexDirection: "column",
-                          alignItems: "center",
+                          fontWeight: match.awayPens ? "bold" : "normal",
                         }}
                       >
-                        <input
-                          className="input"
-                          type="number"
-                          value={match.awayScore}
-                          onChange={(e) =>
-                            updateMatch(key, "awayScore", Number(e.target.value))
-                          }
-                          style={{ width: "70px", textAlign: "center" }}
-                        />
+                        Pens
+                      </button>
+                    )}
+                  </div>
+                </td>
 
-                        {isPensMatch && isDraw && (
-                          <button
-                            type="button"
-                            className="btn btn-secondary"
-                            style={{
-                              marginTop: "4px",
-                              padding: "6px 10px",
-                              background: match.awayPens ? "#22c55e" : undefined,
-                              color: match.awayPens ? "white" : undefined,
-                            }}
-                            onClick={() => togglePens(key, "away")}
-                          >
-                            Pens
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </td>
-
-                  <td>
-                    <input
-                      className="input"
-                      value={match.away}
-                      disabled={isGroupMatch}
-                      onChange={(e) => updateMatch(key, "away", e.target.value)}
-                    />
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </section>
+                <td>
+                  <input
+                    type="text"
+                    value={match.away}
+                    disabled={isGroupMatch}
+                    onChange={(e) => updateMatch(key, "away", e.target.value)}
+                  />
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </>
   );
 }

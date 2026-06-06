@@ -1,67 +1,106 @@
+import { useEffect, useMemo, useState } from "react";
 import ScoringRules from "../components/ScoringRules.jsx";
-import { calculateTeamScores } from "../utils/scoring.js";
+import {
+  getCountryScores,
+  getPointsForTeam,
+} from "../lib/countryScoreService";
 
-export default function LeaderboardPage({
-  leaderboard,
-  playerName,
-}) {
-  // ✅ Get match data from Admin page
-  const matches = JSON.parse(localStorage.getItem("matches") || "{}");
+export default function LeaderboardPage({ leaderboard, playerName }) {
+  const [teamScores, setTeamScores] = useState({});
+  const [loadingScores, setLoadingScores] = useState(true);
+  const [scoreError, setScoreError] = useState("");
 
-  // ✅ Calculate team scores from matches
-  const teamScores = calculateTeamScores(matches);
+  useEffect(() => {
+    let isMounted = true;
 
-  // ✅ Add total score to each player
-  const leaderboardWithScores = [...leaderboard]
-    .map((entry) => {
-      const totalPoints = (entry.teams || []).reduce((sum, team) => {
-        return sum + (teamScores?.[team] || 0);
-      }, 0);
+    const loadScores = async () => {
+      try {
+        setLoadingScores(true);
+        setScoreError("");
 
-      return {
-        ...entry,
-        totalPoints,
-      };
-    })
-    .sort((a, b) => b.totalPoints - a.totalPoints);
+        const scores = await getCountryScores();
+
+        if (isMounted) {
+          setTeamScores(scores);
+        }
+      } catch (error) {
+        console.error(error);
+
+        if (isMounted) {
+          setScoreError("There was a problem loading the latest scores.");
+        }
+      } finally {
+        if (isMounted) {
+          setLoadingScores(false);
+        }
+      }
+    };
+
+    loadScores();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const leaderboardWithScores = useMemo(() => {
+    return [...leaderboard]
+      .map((entry) => {
+        const totalPoints = (entry.teams || []).reduce((sum, team) => {
+          return sum + getPointsForTeam(teamScores, team);
+        }, 0);
+
+        return {
+          ...entry,
+          totalPoints,
+        };
+      })
+      .sort((a, b) => b.totalPoints - a.totalPoints);
+  }, [leaderboard, teamScores]);
 
   return (
     <>
-      <table>
-        <tr>
-          <th>Pos</th>
-          <th>Name</th>
-          <th>Pool 1</th>
-          <th>Pool 2</th>
-          <th>Pool 3</th>
-          <th>Pool 4</th>
-          <th>Total Points</th>
-        </tr>
+      {loadingScores && <p>Loading latest scores...</p>}
 
-        {leaderboardWithScores.length === 0 ? (
-          <tr>
-            <td colSpan="7">
-              No entries yet. Spin the slots to add the first row.
-            </td>
-          </tr>
-        ) : (
-          leaderboardWithScores.map((entry, index) => (
-            <tr key={entry.name}>
-              <td>{index + 1}</td>
-              <td>{entry.name}</td>
-              <td>{entry.teams?.[0] ?? "-"}</td>
-              <td>{entry.teams?.[1] ?? "-"}</td>
-              <td>{entry.teams?.[2] ?? "-"}</td>
-              <td>{entry.teams?.[3] ?? "-"}</td>
-              <td>{entry.totalPoints}</td>
+      {scoreError && (
+        <p style={{ color: "crimson", fontWeight: "bold" }}>{scoreError}</p>
+      )}
+
+      {leaderboardWithScores.length === 0 ? (
+        <p>No entries yet. Spin the slots to add the first row.</p>
+      ) : (
+        <table>
+          <thead>
+            <tr>
+              <th>Pos</th>
+              <th>Name</th>
+              <th>Pool 1</th>
+              <th>Pool 2</th>
+              <th>Pool 3</th>
+              <th>Pool 4</th>
+              <th>Total Points</th>
             </tr>
-          ))
-        )}
-      </table>
+          </thead>
 
-      <p style={{ marginTop: 12 }}>
-        Scores will be updated daily.
-      </p>
+          <tbody>
+            {leaderboardWithScores.map((entry, index) => (
+              <tr key={`${entry.name}-${index}`}>
+                <td>{index + 1}</td>
+                <td>{entry.name}</td>
+                <td>{entry.teams?.[0] ?? "-"}</td>
+                <td>{entry.teams?.[1] ?? "-"}</td>
+                <td>{entry.teams?.[2] ?? "-"}</td>
+                <td>{entry.teams?.[3] ?? "-"}</td>
+                <td>{entry.totalPoints}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      <p>Scores will be updated daily.</p>
+
+      <ScoringRules />
     </>
   );
 }

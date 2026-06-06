@@ -1,51 +1,87 @@
+import { useEffect, useMemo, useState } from "react";
 import ScoringRules from "../components/ScoringRules";
-import { calculateTeamScores } from "../utils/scoring.js";
+import { getCountryScoreRows } from "../lib/countryScoreService";
 
 export default function CountriesPage({ pools, goBack }) {
-  const allTeams = [...new Set(pools.flat())];
+  const [countryRows, setCountryRows] = useState([]);
+  const [loadingScores, setLoadingScores] = useState(true);
+  const [scoreError, setScoreError] = useState("");
 
-  const matches = JSON.parse(localStorage.getItem("matches") || "{}");
-  const teamScores = calculateTeamScores(matches);
+  useEffect(() => {
+    let isMounted = true;
 
-  const countriesWithScores = allTeams
-    .map((team) => ({
-      team,
-      points: teamScores[team] || 0,
-    }))
-    .sort((a, b) => b.points - a.points);
+    const loadScores = async () => {
+      try {
+        setLoadingScores(true);
+        setScoreError("");
+
+        const rows = await getCountryScoreRows();
+
+        if (isMounted) {
+          setCountryRows(rows);
+        }
+      } catch (error) {
+        console.error(error);
+
+        if (isMounted) {
+          setScoreError("There was a problem loading the country scores.");
+        }
+      } finally {
+        if (isMounted) {
+          setLoadingScores(false);
+        }
+      }
+    };
+
+    loadScores();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const countriesWithScores = useMemo(() => {
+    return [...countryRows]
+      .map((row) => ({
+        team: row.team,
+        points: row.points || 0,
+      }))
+      .sort((a, b) => b.points - a.points || a.team.localeCompare(b.team));
+  }, [countryRows]);
 
   return (
-    <section className="panel hero">
-      <p className="subtext">
-        This page shows all available countries ordered by their total points.
-      </p>
+    <>
+      <p>This page shows all available countries ordered by their total points.</p>
 
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Pos</th>
-              <th>Country</th>
-              <th>Total Points</th>
+      {loadingScores && <p>Loading latest country scores...</p>}
+
+      {scoreError && (
+        <p style={{ color: "crimson", fontWeight: "bold" }}>{scoreError}</p>
+      )}
+
+      <table>
+        <thead>
+          <tr>
+            <th>Pos</th>
+            <th>Country</th>
+            <th>Total Points</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {countriesWithScores.map((entry, index) => (
+            <tr key={entry.team}>
+              <td>{index + 1}</td>
+              <td>{entry.team}</td>
+              <td>{entry.points}</td>
             </tr>
-          </thead>
+          ))}
+        </tbody>
+      </table>
 
-          <tbody>
-            {countriesWithScores.map((entry, index) => (
-              <tr key={entry.team}>
-                <td>{index + 1}</td>
-                <td>{entry.team}</td>
-                <td>{entry.points}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <p>Country points update daily.</p>
 
-      <p className="small-note">
-        Country points update daily.
-      </p>
-
-    </section>
+      <ScoringRules />
+    </>
   );
 }
