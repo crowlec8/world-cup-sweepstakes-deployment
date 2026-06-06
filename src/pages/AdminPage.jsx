@@ -214,17 +214,17 @@ export default function AdminPage({ goBack }) {
   };
 
   return (
-    <>
+    <section className="page-section admin-page">
       <h2>Admin - Fixtures & Results</h2>
 
-      <p>
+      <p className="page-intro">
         Enter scores for the group matches and both teams plus scores for the knockout
         rounds. Group stage team names are locked because they are pre-filled. For the
         3rd place playoff and Final, if the match ends level you can use the Pens
         buttons to select the winner on penalties.
       </p>
 
-      <div style={{ display: "flex", gap: "12px", marginBottom: "16px" }}>
+      <div className="admin-toolbar">
         <button type="button" onClick={goBack}>
           Back
         </button>
@@ -242,119 +242,104 @@ export default function AdminPage({ goBack }) {
         </button>
       </div>
 
-      {saveMessage && (
-        <p style={{ color: "green", fontWeight: "bold" }}>{saveMessage}</p>
-      )}
+      {saveMessage && <p className="success-message">{saveMessage}</p>}
 
-      {saveError && (
-        <p style={{ color: "crimson", fontWeight: "bold" }}>{saveError}</p>
-      )}
+      {saveError && <p className="error-message">{saveError}</p>}
 
-      <table>
-        <thead>
-          <tr>
-            <th>Match</th>
-            <th>Home</th>
-            <th>Score</th>
-            <th>Away</th>
-          </tr>
-        </thead>
+      <div className="responsive-table-shell admin-table-shell">
+        <table className="responsive-table admin-table">
+          <thead>
+            <tr>
+              <th>Match</th>
+              <th>Home</th>
+              <th>Score</th>
+              <th>Away</th>
+            </tr>
+          </thead>
 
-        <tbody>
-          {[...GROUP_STAGE_KEYS, ...MATCH_TEMPLATE].map((key) => {
-            const match = matches[key];
+          <tbody>
+            {[...GROUP_STAGE_KEYS, ...MATCH_TEMPLATE].map((key) => {
+              const match = matches[key];
 
-            if (!match) return null;
+              if (!match) return null;
 
-            const isGroupMatch = key.startsWith("GROUP");
-            const isPensMatch = key === "3RD" || key === "FINAL";
-            const isDraw = Number(match.homeScore) === Number(match.awayScore);
+              const isGroupMatch = key.startsWith("GROUP");
+              const isPensMatch = key === "3RD" || key === "FINAL";
+              const isDraw = Number(match.homeScore) === Number(match.awayScore);
 
-            return (
-              <tr key={key}>
-                <td>
-                  {isGroupMatch ? `Group Match ${key.split("-")[1]}` : key}
-                </td>
+              return (
+                <tr key={key}>
+                  <td data-label="Match">
+                    {isGroupMatch ? `Group Match ${key.split("-")[1]}` : key}
+                  </td>
 
-                <td>
-                  <input
-                    type="text"
-                    value={match.home}
-                    disabled={isGroupMatch}
-                    onChange={(e) => updateMatch(key, "home", e.target.value)}
-                  />
-                </td>
-
-                <td>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: "8px",
-                    }}
-                  >
+                  <td data-label="Home">
                     <input
-                      type="number"
-                      min="0"
-                      value={match.homeScore}
-                      onChange={(e) =>
-                        updateMatch(key, "homeScore", Number(e.target.value))
-                      }
-                      style={{ width: "70px", textAlign: "center" }}
+                      type="text"
+                      value={match.home}
+                      disabled={isGroupMatch}
+                      onChange={(e) => updateMatch(key, "home", e.target.value)}
                     />
+                  </td>
 
-                    {isPensMatch && isDraw && (
-                      <button
-                        type="button"
-                        onClick={() => togglePens(key, "home")}
-                        style={{
-                          fontWeight: match.homePens ? "bold" : "normal",
-                        }}
-                      >
-                        Pens
-                      </button>
-                    )}
+                  <td data-label="Score">
+                    <div className="admin-score-controls">
+                      <input
+                        type="number"
+                        min="0"
+                        value={match.homeScore}
+                        onChange={(e) =>
+                          updateMatch(key, "homeScore", Number(e.target.value))
+                        }
+                      />
 
-                    <span>-</span>
+                      {isPensMatch && isDraw && (
+                        <button
+                          type="button"
+                          onClick={() => togglePens(key, "home")}
+                          className={match.homePens ? "selected-pen-button" : ""}
+                        >
+                          Pens
+                        </button>
+                      )}
 
+                      <span>-</span>
+
+                      <input
+                        type="number"
+                        min="0"
+                        value={match.awayScore}
+                        onChange={(e) =>
+                          updateMatch(key, "awayScore", Number(e.target.value))
+                        }
+                      />
+
+                      {isPensMatch && isDraw && (
+                        <button
+                          type="button"
+                          onClick={() => togglePens(key, "away")}
+                          className={match.awayPens ? "selected-pen-button" : ""}
+                        >
+                          Pens
+                        </button>
+                      )}
+                    </div>
+                  </td>
+
+                  <td data-label="Away">
                     <input
-                      type="number"
-                      min="0"
-                      value={match.awayScore}
-                      onChange={(e) =>
-                        updateMatch(key, "awayScore", Number(e.target.value))
-                      }
-                      style={{ width: "70px", textAlign: "center" }}
+                      type="text"
+                      value={match.away}
+                      disabled={isGroupMatch}
+                      onChange={(e) => updateMatch(key, "away", e.target.value)}
                     />
-
-                    {isPensMatch && isDraw && (
-                      <button
-                        type="button"
-                        onClick={() => togglePens(key, "away")}
-                        style={{
-                          fontWeight: match.awayPens ? "bold" : "normal",
-                        }}
-                      >
-                        Pens
-                      </button>
-                    )}
-                  </div>
-                </td>
-
-                <td>
-                  <input
-                    type="text"
-                    value={match.away}
-                    disabled={isGroupMatch}
-                    onChange={(e) => updateMatch(key, "away", e.target.value)}
-                  />
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
