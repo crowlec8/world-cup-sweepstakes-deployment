@@ -116,21 +116,23 @@ code {
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
-  padding: 0 24px 32px;
+  padding: 0 32px 40px;
 }
 
 .page-intro,
 .page-note {
   max-width: 900px;
   margin: 0 auto 18px;
+  color: var(--text);
 }
 
 .admin-toolbar {
   display: flex;
   justify-content: center;
+  align-items: center;
   flex-wrap: wrap;
   gap: 12px;
-  margin: 18px auto;
+  margin: 22px auto;
   max-width: 100%;
 }
 
@@ -154,10 +156,11 @@ code {
   max-width: 100%;
   overflow-x: auto;
   box-sizing: border-box;
+  margin: 22px auto;
   border: 1px solid var(--border);
-  border-radius: 14px;
-  margin: 18px auto;
+  border-radius: 18px;
   background: var(--bg);
+  box-shadow: var(--shadow);
   -webkit-overflow-scrolling: touch;
 }
 
@@ -165,11 +168,13 @@ code {
   width: 100%;
   border-collapse: collapse;
   table-layout: auto;
+  background: var(--bg);
+  color: var(--text);
 }
 
 .responsive-table th,
 .responsive-table td {
-  padding: 12px;
+  padding: 14px 16px;
   border-bottom: 1px solid var(--border);
   text-align: center;
   vertical-align: middle;
@@ -184,6 +189,14 @@ code {
 
 .responsive-table tr:last-child td {
   border-bottom: none;
+}
+
+.responsive-table tbody tr {
+  transition: background 0.2s ease;
+}
+
+.responsive-table tbody tr:hover {
+  background: var(--social-bg);
 }
 
 .admin-table input {
@@ -253,8 +266,10 @@ code {
   .responsive-table-shell {
     border: none;
     border-radius: 0;
+    box-shadow: none;
     overflow-x: visible;
     background: transparent;
+    margin: 16px auto;
   }
 
   .responsive-table,
@@ -268,17 +283,25 @@ code {
     box-sizing: border-box;
   }
 
+  .responsive-table {
+    background: transparent;
+  }
+
   .responsive-table thead {
     display: none;
   }
 
   .responsive-table tr {
     border: 1px solid var(--border);
-    border-radius: 14px;
+    border-radius: 16px;
     margin-bottom: 12px;
     padding: 10px;
     background: var(--bg);
     box-shadow: var(--shadow);
+  }
+
+  .responsive-table tbody tr:hover {
+    background: var(--bg);
   }
 
   .responsive-table td {
