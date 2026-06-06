@@ -8,6 +8,7 @@ export default function JoinLeaguePage({
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [alreadyJoined, setAlreadyJoined] = useState(false);
+  const [joining, setJoining] = useState(false);
 
   const handleJoin = async () => {
     const cleanPassword = password.trim();
@@ -18,18 +19,21 @@ export default function JoinLeaguePage({
       return;
     }
 
+    setJoining(true);
+    setError("");
+    setAlreadyJoined(false);
+
     try {
       const result = await onJoin(cleanPassword);
 
       if (result === "not_found") {
         setError("League password not found.");
-        setAlreadyJoined(false);
         return;
       }
 
       if (result === "already_joined") {
         setError(
-          `${playerName} has already joined this league. Use View Existing League to see the leaderboard.`
+          `${playerName} has already joined this league. To view this league, use the View Existing League button and enter your name and league password.`
         );
         setAlreadyJoined(true);
         return;
@@ -37,7 +41,6 @@ export default function JoinLeaguePage({
 
       if (result === "error") {
         setError("Something went wrong. Please try again.");
-        setAlreadyJoined(false);
         return;
       }
 
@@ -45,8 +48,10 @@ export default function JoinLeaguePage({
       setAlreadyJoined(false);
     } catch (err) {
       console.error(err);
-      setError("Something went wrong.");
+      setError("Something went wrong. Please try again.");
       setAlreadyJoined(false);
+    } finally {
+      setJoining(false);
     }
   };
 
@@ -55,7 +60,8 @@ export default function JoinLeaguePage({
       <h2>Join League</h2>
 
       <p className="subtext">
-        Enter the league password to join this league for the first time.
+        Enter the league password to join this league for the first time. If you
+        have already joined, use View Existing League instead.
       </p>
 
       <input
@@ -98,9 +104,10 @@ export default function JoinLeaguePage({
         className="btn btn-primary"
         type="button"
         onClick={handleJoin}
+        disabled={joining}
         style={{ marginTop: 12 }}
       >
-        Join
+        {joining ? "Checking..." : "Join"}
       </button>
     </section>
   );
