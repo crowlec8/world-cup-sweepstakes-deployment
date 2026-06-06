@@ -128,6 +128,7 @@ export default function App() {
   const [hasSpun, setHasSpun] = useState(false);
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
   const [showRules, setShowRules] = useState(false);
+  const [countriesReturnView, setCountriesReturnView] = useState<View>("name");
 
   const intervalRefs = useRef<number[]>([]);
 
@@ -217,7 +218,24 @@ export default function App() {
       return;
     }
 
-    if (view === "countries" || view === "leaderboard") {
+    if (view === "countries") {
+      if (countriesReturnView === "leaderboard") {
+        setView("leaderboard");
+        return;
+      }
+
+      setView(
+        playerName && leaguePassword
+          ? "draw"
+          : playerName
+          ? "leagueChoice"
+          : "name"
+      );
+
+      return;
+    }
+
+    if (view === "leaderboard") {
       setView(
         playerName && leaguePassword
           ? "draw"
@@ -574,13 +592,16 @@ export default function App() {
             {view !== "countries" && (
               <button
                 className="btn btn-secondary"
-                onClick={() => setView("countries")}
+                onClick={() => {
+                  setCountriesReturnView(view);
+                  setView("countries");
+                }}
               >
                 Teams
               </button>
             )}
 
-            {view !== "name" && (
+            {view !== "name" && view !== "leaderboard" && (
               <button className="btn btn-secondary" onClick={handleBack}>
                 Back
               </button>
