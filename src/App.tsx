@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import "./styles/main.css";
-import NamePage from "./pages/NamePage";
+import NamePage from "./pages/NamePage.tsx";
 import LeagueChoicePage from "./pages/LeagueChoicePage";
 import CreateLeaguePage from "./pages/CreateLeaguePage";
 import JoinLeaguePage from "./pages/JoinLeaguePage";
