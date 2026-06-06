@@ -152,7 +152,6 @@ export default function App() {
     };
   }, []);
 
-  // Secret admin URL handling
   useEffect(() => {
     const syncPathToView = () => {
       if (window.location.pathname === "/admin23") {
@@ -169,16 +168,12 @@ export default function App() {
     };
   }, [isAdminAuthenticated]);
 
-  // Prevent direct access to admin view unless logged in
   useEffect(() => {
     if (view === "admin" && !isAdminAuthenticated) {
       setView("adminLogin");
     }
   }, [view, isAdminAuthenticated]);
 
-  // ---------------------------------
-  // Titles
-  // ---------------------------------
   const pageTitle =
     view === "leaderboard"
       ? leagueName
@@ -204,9 +199,12 @@ export default function App() {
         : `Welcome, ${playerName}`
       : "";
 
-  // ---------------------------------
-  // Back behaviour
-  // ---------------------------------
+  const showPageHeading =
+    view === "leaderboard" ||
+    view === "countries" ||
+    view === "leagueChoice" ||
+    view === "draw";
+
   const handleBack = () => {
     if (view === "admin" || view === "adminLogin") {
       window.history.replaceState(null, "", "/");
@@ -270,9 +268,6 @@ export default function App() {
     }
   };
 
-  // ---------------------------------
-  // Start
-  // ---------------------------------
   const startGame = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -284,17 +279,11 @@ export default function App() {
     setView("leagueChoice");
   };
 
-  // ---------------------------------
-  // Admin login
-  // ---------------------------------
   const handleAdminLogin = () => {
     setIsAdminAuthenticated(true);
     setView("admin");
   };
 
-  // ---------------------------------
-  // Create league (Supabase)
-  // ---------------------------------
   const handleCreateLeague = async (
     leagueNameInput: string,
     passwordInput: string
@@ -332,9 +321,6 @@ export default function App() {
     }
   };
 
-  // ---------------------------------
-  // Join league (Supabase)
-  // ---------------------------------
   const handleJoinLeague = async (passwordInput: string) => {
     const cleanPassword = passwordInput.trim();
 
@@ -374,9 +360,6 @@ export default function App() {
     }
   };
 
-  // ---------------------------------
-  // View existing league
-  // ---------------------------------
   const handleViewExistingLeague = async (
     nameInputValue: string,
     passwordInput: string
@@ -431,9 +414,6 @@ export default function App() {
     }
   };
 
-  // ---------------------------------
-  // Find a unique team combination within a league
-  // ---------------------------------
   const getUniqueCombinationForLeague = (players: Entry[]) => {
     const usedCombinations = new Set(
       (players || [])
@@ -498,9 +478,6 @@ export default function App() {
     return { finalIndexes, finalTeamsLocal };
   };
 
-  // ---------------------------------
-  // Spin logic (Supabase)
-  // ---------------------------------
   const spinSlots = async () => {
     if (spinning || !playerName || !leagueId) return;
 
@@ -590,9 +567,6 @@ export default function App() {
     }
   };
 
-  // ---------------------------------
-  // Clear only this league leaderboard
-  // ---------------------------------
   const clearLocalLeaderboard = async () => {
     if (!leagueId) return;
 
@@ -608,7 +582,6 @@ export default function App() {
   return (
     <div className="app-shell">
       <div className="container">
-        {/* Header */}
         <div className="header-row">
           <div className="title-area">
             <div className="site-title-block">
@@ -616,7 +589,9 @@ export default function App() {
               <h1 className="site-title">World Cup Sweepstakes</h1>
             </div>
 
-            {pageTitle && <h2 className="page-heading">{pageTitle}</h2>}
+            {showPageHeading && pageTitle && (
+              <h2 className="page-heading">{pageTitle}</h2>
+            )}
           </div>
 
           <div className="toolbar">
@@ -665,7 +640,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* Routing */}
         {view === "name" && (
           <NamePage
             nameInput={nameInput}
