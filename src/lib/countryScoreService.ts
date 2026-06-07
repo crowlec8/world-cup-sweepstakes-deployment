@@ -1,6 +1,7 @@
 import { supabase } from "./supabase";
 
 const COUNTRY_SCORES_TABLE = "scores";
+const MATCHES_TABLE = "matches";
 
 export type CountryScoreRow = {
   team: string;
@@ -9,6 +10,19 @@ export type CountryScoreRow = {
 };
 
 export type CountryScoreMap = Record<string, number>;
+
+type MatchRow = {
+  id: string;
+  stage: string | null;
+  home_team: string | null;
+  away_team: string | null;
+  api_home_score: number | string | null;
+  api_away_score: number | string | null;
+  manual_home_score: number | string | null;
+  manual_away_score: number | string | null;
+  api_winner: string | null;
+  manual_winner: string | null;
+};
 
 export async function getCountryScores(): Promise<CountryScoreMap> {
   const { data, error } = await supabase
@@ -42,6 +56,176 @@ export async function getCountryScoreRows(): Promise<CountryScoreRow[]> {
     points: Number(row.points || 0),
     updated_at: row.updated_at,
   }));
+}
+
+function normaliseScoreValue(value: number | string | null | undefined) {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  const numericValue = Number(value);
+
+  if (Number.isNaN(numericValue)) {
+    return null;
+  }
+
+  return numericValue;
+}
+
+function getFinalHomeScore(match: MatchRow) {
+  const manualScore = normaliseScoreValue(match.manual_home_score);
+
+  if (manualScore !== null) {
+    return manualScore;
+  }
+
+  return normaliseScoreValue(match.api_home_score);
+}
+
+function getFinalAwayScore(match: MatchRow) {
+  const manualScore = normaliseScoreValue(match.manual_away_score);
+
+  if (manualScore !== null) {
+    return manualScore;
+  }
+
+  return normaliseScoreValue(match.api_away_score);
+}
+
+function getFinalWinner(match: MatchRow) {
+  if (match.manual_winner) {
+    return match.manual_winner;
+  }
+
+  if (match.api_winner) {
+    return match.api_winner;
+  }
+
+  const homeScore = getFinalHomeScore(match);
+  const awayScore = getFinalAwayScore(match);
+
+  if (homeScore === null || awayScore === null) {
+    return null;
+  }
+
+  if (homeScore > awayScore) {
+    return match.home_team;
+  }
+
+  if (awayScore > homeScore) {
+    return match.away_team;
+  }
+
+  return null;
+}
+
+function getStageKey(match: MatchRow) {
+  const stage = match.stage || "";
+
+  if (stage === "GROUP" || stage === "GROUP_STAGE") {
+    return "GROUP";
+  }
+
+  if (stage === "R32" || stage === "LAST_32" || stage === "ROUND_OF_32") {
+    return "R32";
+  }
+
+  if (stage === "R16" || stage === "LAST_16" || stage === "ROUND_OF_16") {
+    return "R16";
+  }
+
+  if (stage === "QF" || stage === "QUARTER_FINALS") {
+    return "QF";
+  }
+
+  if (stage === "SF" || stage === "SEMI_FINALS") {
+    return "SF";
+  }
+
+  if (stage === "3RD" || stage === "THIRD_PLACE") {
+    return "3RD";
+  }
+
+  if (stage === "FINAL") {
+    return "FINAL";
+  }
+
+  return stage;
+}
+
+function addPoints(scores: CountryScoreMap, team: string | null, points: number) {
+  if (!team) {
+    return;
+  }
+
+  const cleanTeam = String(team).trim();
+
+  if (!cleanTeam) {
+    return;
+  }
+
+  scores[cleanTeam] = (scores[cleanTeam] || 0) + Number(points || 0);
+}
+
+function calculateScoresFromMatches(matches: MatchRow[]) {
+  const scores: CountryScoreMap = {};
+
+  matches.forEach((match) => {
+    const homeScore = getFinalHomeScore(match);
+    const awayScore = getFinalAwayScore(match);
+
+    if (homeScore === null || awayScore === null) {
+      return;
+    }
+
+    const home = match.home_team;
+    const away = match.away_team;
+    const stage = getStageKey(match);
+
+    // 1 point per goal scored.
+    // Penalty shootout goals should not be included here.
+    addPoints(scores, home, homeScore);
+    addPoints(scores, away, awayScore);
+
+    // Group games get goal points only.
+    // Knockout games get goal points + round appearance points.
+    if (stage === "R32") {
+      addPoints(scores, home, 5);
+      addPoints(scores, away, 5);
+    }
+
+    if (stage === "R16") {
+      addPoints(scores, home, 10);
+      addPoints(scores, away, 10);
+    }
+
+    if (stage === "QF") {
+      addPoints(scores, home, 20);
+      addPoints(scores, away, 20);
+    }
+
+    if (stage === "SF") {
+      addPoints(scores, home, 40);
+      addPoints(scores, away, 40);
+    }
+
+    if (stage === "FINAL") {
+      addPoints(scores, home, 80);
+      addPoints(scores, away, 80);
+    }
+
+    const winner = getFinalWinner(match);
+
+    if (winner && stage === "3RD") {
+      addPoints(scores, winner, 40);
+    }
+
+    if (winner && stage === "FINAL") {
+      addPoints(scores, winner, 160);
+    }
+  });
+
+  return scores;
 }
 
 export async function updateCountryScores(
@@ -102,6 +286,46 @@ export async function updateCountryScores(
 
   return {
     updatedRows: updatedRows || [],
+    missingTeams,
+  };
+}
+
+export async function recalculateCountryScoresFromMatches(): Promise<{
+  calculatedScores: CountryScoreMap;
+  updatedRows: CountryScoreRow[];
+  missingTeams: string[];
+}> {
+  const { data: matches, error: matchesError } = await supabase
+    .from(MATCHES_TABLE)
+    .select(
+      `
+      id,
+      stage,
+      home_team,
+      away_team,
+      api_home_score,
+      api_away_score,
+      manual_home_score,
+      manual_away_score,
+      api_winner,
+      manual_winner
+    `
+    )
+    .order("match_date_utc", { ascending: true });
+
+  if (matchesError) {
+    throw matchesError;
+  }
+
+  const calculatedScores = calculateScoresFromMatches((matches || []) as MatchRow[]);
+
+  const { updatedRows, missingTeams } = await updateCountryScores(
+    calculatedScores
+  );
+
+  return {
+    calculatedScores,
+    updatedRows,
     missingTeams,
   };
 }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { updateCountryScores } from "../lib/countryScoreService";
+import { recalculateCountryScoresFromMatches } from "../lib/countryScoreService";
 import {
   clearMatchOverride,
   getFinalAwayScore,
@@ -11,7 +11,6 @@ import {
   saveMatchOverride,
   syncWorldCupMatches,
 } from "../lib/matchService";
-import { calculateTeamScoresFromApiMatches } from "../utils/scoring.js";
 
 function formatDateTime(matchDateUtc) {
   if (!matchDateUtc) {
@@ -81,6 +80,20 @@ export default function AdminPage({ goBack }) {
   const [saveMessage, setSaveMessage] = useState("");
   const [saveError, setSaveError] = useState("");
 
+  const buildDraftsFromMatches = (rows) => {
+    const nextDrafts = {};
+
+    rows.forEach((match) => {
+      nextDrafts[match.id] = {
+        manual_home_score: getDraftValue(match.manual_home_score),
+        manual_away_score: getDraftValue(match.manual_away_score),
+        manual_winner: match.manual_winner || "",
+      };
+    });
+
+    return nextDrafts;
+  };
+
   const loadMatches = async () => {
     setLoadingMatches(true);
     setSaveMessage("");
@@ -90,18 +103,7 @@ export default function AdminPage({ goBack }) {
       const rows = await getMatches();
 
       setMatches(rows);
-
-      const nextDrafts = {};
-
-      rows.forEach((match) => {
-        nextDrafts[match.id] = {
-          manual_home_score: getDraftValue(match.manual_home_score),
-          manual_away_score: getDraftValue(match.manual_away_score),
-          manual_winner: match.manual_winner || "",
-        };
-      });
-
-      setDraftOverrides(nextDrafts);
+      setDraftOverrides(buildDraftsFromMatches(rows));
 
       return rows;
     } catch (error) {
@@ -150,6 +152,15 @@ export default function AdminPage({ goBack }) {
     }));
   };
 
+  const refreshMatchesOnPage = async () => {
+    const latestMatches = await getMatches();
+
+    setMatches(latestMatches);
+    setDraftOverrides(buildDraftsFromMatches(latestMatches));
+
+    return latestMatches;
+  };
+
   const handleSyncLatestScores = async () => {
     setSyncingMatches(true);
     setSaveMessage("");
@@ -158,7 +169,7 @@ export default function AdminPage({ goBack }) {
     try {
       const result = await syncWorldCupMatches();
 
-      await loadMatches();
+      await refreshMatchesOnPage();
 
       setSaveMessage(
         result?.message ||
@@ -181,8 +192,8 @@ export default function AdminPage({ goBack }) {
     setSaveError("");
 
     try {
-      const latestMatches = await getMatches();
-      const calculatedScores = calculateTeamScoresFromApiMatches(latestMatches);
+      const { calculatedScores, updatedRows, missingTeams } =
+        await recalculateCountryScoresFromMatches();
 
       if (Object.keys(calculatedScores).length === 0) {
         setSaveError(
@@ -191,23 +202,7 @@ export default function AdminPage({ goBack }) {
         return;
       }
 
-      const { updatedRows, missingTeams } = await updateCountryScores(
-        calculatedScores
-      );
-
-      setMatches(latestMatches);
-
-      const nextDrafts = {};
-
-      latestMatches.forEach((match) => {
-        nextDrafts[match.id] = {
-          manual_home_score: getDraftValue(match.manual_home_score),
-          manual_away_score: getDraftValue(match.manual_away_score),
-          manual_winner: match.manual_winner || "",
-        };
-      });
-
-      setDraftOverrides(nextDrafts);
+      await refreshMatchesOnPage();
 
       let message = `Leaderboard scores updated successfully for ${updatedRows.length} countries.`;
 
@@ -241,8 +236,9 @@ export default function AdminPage({ goBack }) {
 
     try {
       const result = await syncWorldCupMatches();
-      const latestMatches = await getMatches();
-      const calculatedScores = calculateTeamScoresFromApiMatches(latestMatches);
+
+      const { calculatedScores, updatedRows, missingTeams } =
+        await recalculateCountryScoresFromMatches();
 
       if (Object.keys(calculatedScores).length === 0) {
         setSaveError(
@@ -251,23 +247,7 @@ export default function AdminPage({ goBack }) {
         return;
       }
 
-      const { updatedRows, missingTeams } = await updateCountryScores(
-        calculatedScores
-      );
-
-      setMatches(latestMatches);
-
-      const nextDrafts = {};
-
-      latestMatches.forEach((match) => {
-        nextDrafts[match.id] = {
-          manual_home_score: getDraftValue(match.manual_home_score),
-          manual_away_score: getDraftValue(match.manual_away_score),
-          manual_winner: match.manual_winner || "",
-        };
-      });
-
-      setDraftOverrides(nextDrafts);
+      await refreshMatchesOnPage();
 
       let message = `${
         result?.message || "Latest fixtures and scores synced successfully."
@@ -956,9 +936,9 @@ export default function AdminPage({ goBack }) {
       )}
 
       <p className="page-note">
-        Update Leaderboard Scores recalculates from the new matches table only.
-        Manual scores are used first. If no manual score exists, the API score is
-        used.
+        Update Leaderboard Scores recalculates directly from the Supabase
+        matches table. Manual scores are used first. If no manual score exists,
+        the API score is used.
       </p>
     </section>
   );
