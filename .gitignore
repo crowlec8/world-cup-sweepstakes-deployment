@@ -18,3 +18,9 @@ Thumbs.db
 
 # Vite files
 .vite/
+
+# Supabase local/temp files
+supabase/.branches
+supabase/.temp
+supabase/functions/.env
+supabase/functions/**/.env
