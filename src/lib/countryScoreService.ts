@@ -22,6 +22,7 @@ type MatchRow = {
   manual_away_score: number | string | null;
   api_winner: string | null;
   manual_winner: string | null;
+  api_status: string | null;
 };
 
 export async function getCountryScores(): Promise<CountryScoreMap> {
@@ -72,11 +73,19 @@ function normaliseScoreValue(value: number | string | null | undefined) {
   return numericValue;
 }
 
+function isFinishedApiMatch(match: MatchRow) {
+  return match.api_status === "FINISHED";
+}
+
 function getFinalHomeScore(match: MatchRow) {
   const manualScore = normaliseScoreValue(match.manual_home_score);
 
   if (manualScore !== null) {
     return manualScore;
+  }
+
+  if (!isFinishedApiMatch(match)) {
+    return null;
   }
 
   return normaliseScoreValue(match.api_home_score);
@@ -89,12 +98,20 @@ function getFinalAwayScore(match: MatchRow) {
     return manualScore;
   }
 
+  if (!isFinishedApiMatch(match)) {
+    return null;
+  }
+
   return normaliseScoreValue(match.api_away_score);
 }
 
 function getFinalWinner(match: MatchRow) {
   if (match.manual_winner) {
     return match.manual_winner;
+  }
+
+  if (!isFinishedApiMatch(match)) {
+    return null;
   }
 
   if (match.api_winner) {
@@ -251,18 +268,12 @@ function calculateScoresFromMatches(matches: MatchRow[]) {
       ensureTeamExists(scores, home);
       ensureTeamExists(scores, away);
 
-      // 1 point per goal scored.
-      // Penalty shootout goals should not be included here.
       addPoints(scores, home, homeScore);
       addPoints(scores, away, awayScore);
 
-      // Group games get goal points only.
-      // Knockout games get goal points + round appearance points.
       addKnockoutAppearancePoints(scores, stage, home, away);
     }
 
-    // Winner-only overrides can still apply final/third-place winner bonuses.
-    // They cannot create goal points unless both scores are entered.
     if (winner) {
       ensureTeamExists(scores, winner);
       addWinnerPoints(scores, stage, winner);
@@ -301,14 +312,6 @@ export async function updateCountryScores(
   }
 
   const existingTeams = existingCountries || [];
-
-  /*
-    Build the union of:
-    1. teams already in scores
-    2. teams calculated from matches
-
-    This allows scores to be populated even when the scores table starts empty.
-  */
   const allTeamNames = new Set<string>();
 
   existingTeams.forEach((row) => {
@@ -375,7 +378,8 @@ export async function recalculateCountryScoresFromMatches(): Promise<{
       manual_home_score,
       manual_away_score,
       api_winner,
-      manual_winner
+      manual_winner,
+      api_status
     `
     )
     .order("match_date_utc", { ascending: true });
