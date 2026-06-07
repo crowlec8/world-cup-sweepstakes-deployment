@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { recalculateCountryScoresFromMatches } from "../lib/countryScoreService";
+
 import {
   clearMatchOverride,
   getFinalAwayScore,
@@ -67,6 +68,22 @@ function getDraftValue(value) {
   }
 
   return String(value);
+}
+
+function buildLeaderboardMessage(prefix, calculatedScores, updatedRows, missingTeams) {
+  let message = `${prefix} Leaderboard scores updated for ${updatedRows.length} countries.`;
+
+  if (calculatedScores.Mexico !== undefined) {
+    message += ` Mexico calculated points: ${calculatedScores.Mexico}.`;
+  }
+
+  if (missingTeams.length > 0) {
+    message += ` These teams were not found in Supabase and were skipped: ${[
+      ...new Set(missingTeams),
+    ].join(", ")}.`;
+  }
+
+  return message;
 }
 
 export default function AdminPage({ goBack }) {
@@ -204,19 +221,14 @@ export default function AdminPage({ goBack }) {
 
       await refreshMatchesOnPage();
 
-      let message = `Leaderboard scores updated successfully for ${updatedRows.length} countries.`;
-
-      if (calculatedScores.Mexico !== undefined) {
-        message += ` Mexico calculated points: ${calculatedScores.Mexico}.`;
-      }
-
-      if (missingTeams.length > 0) {
-        message += ` These teams were not found in Supabase and were skipped: ${[
-          ...new Set(missingTeams),
-        ].join(", ")}.`;
-      }
-
-      setSaveMessage(message);
+      setSaveMessage(
+        buildLeaderboardMessage(
+          "Leaderboard scores updated successfully.",
+          calculatedScores,
+          updatedRows,
+          missingTeams
+        )
+      );
     } catch (error) {
       console.error(error);
       setSaveError(
@@ -249,21 +261,14 @@ export default function AdminPage({ goBack }) {
 
       await refreshMatchesOnPage();
 
-      let message = `${
-        result?.message || "Latest fixtures and scores synced successfully."
-      } Leaderboard scores updated for ${updatedRows.length} countries.`;
-
-      if (calculatedScores.Mexico !== undefined) {
-        message += ` Mexico calculated points: ${calculatedScores.Mexico}.`;
-      }
-
-      if (missingTeams.length > 0) {
-        message += ` These teams were not found in Supabase and were skipped: ${[
-          ...new Set(missingTeams),
-        ].join(", ")}.`;
-      }
-
-      setSaveMessage(message);
+      setSaveMessage(
+        buildLeaderboardMessage(
+          result?.message || "Latest fixtures and scores synced successfully.",
+          calculatedScores,
+          updatedRows,
+          missingTeams
+        )
+      );
     } catch (error) {
       console.error(error);
       setSaveError(
@@ -308,11 +313,12 @@ export default function AdminPage({ goBack }) {
     }
 
     setSavingMatchId(match.id);
+    setUpdatingScores(true);
     setSaveMessage("");
     setSaveError("");
 
     try {
-      const updatedMatch = await saveMatchOverride({
+      await saveMatchOverride({
         id: match.id,
         manual_home_score: manualHomeScore,
         manual_away_score: manualAwayScore,
@@ -320,71 +326,76 @@ export default function AdminPage({ goBack }) {
         manual_status: null,
       });
 
-      setMatches((prev) =>
-        prev.map((existingMatch) =>
-          existingMatch.id === updatedMatch.id ? updatedMatch : existingMatch
-        )
-      );
+      const { calculatedScores, updatedRows, missingTeams } =
+        await recalculateCountryScoresFromMatches();
 
-      setDraftOverrides((prev) => ({
-        ...prev,
-        [updatedMatch.id]: {
-          manual_home_score:
-            updatedMatch.manual_home_score === null ||
-            updatedMatch.manual_home_score === undefined
-              ? ""
-              : String(updatedMatch.manual_home_score),
-          manual_away_score:
-            updatedMatch.manual_away_score === null ||
-            updatedMatch.manual_away_score === undefined
-              ? ""
-              : String(updatedMatch.manual_away_score),
-          manual_winner: updatedMatch.manual_winner || "",
-        },
-      }));
+      await refreshMatchesOnPage();
+
+      if (Object.keys(calculatedScores).length === 0) {
+        setSaveMessage(
+          "Manual override saved, but no leaderboard scores were calculated yet."
+        );
+        return;
+      }
 
       setSaveMessage(
-        "Manual override saved. Click Update Leaderboard Scores to apply it to the leaderboard."
+        buildLeaderboardMessage(
+          "Manual override saved.",
+          calculatedScores,
+          updatedRows,
+          missingTeams
+        )
       );
     } catch (error) {
       console.error(error);
-      setSaveError("There was a problem saving the manual override.");
+      setSaveError(
+        error?.message ||
+          "There was a problem saving the manual override and updating the leaderboard."
+      );
     } finally {
       setSavingMatchId("");
+      setUpdatingScores(false);
     }
   };
 
   const handleClearOverride = async (match) => {
     setSavingMatchId(match.id);
+    setUpdatingScores(true);
     setSaveMessage("");
     setSaveError("");
 
     try {
-      const updatedMatch = await clearMatchOverride(match.id);
+      await clearMatchOverride(match.id);
 
-      setMatches((prev) =>
-        prev.map((existingMatch) =>
-          existingMatch.id === updatedMatch.id ? updatedMatch : existingMatch
-        )
-      );
+      const { calculatedScores, updatedRows, missingTeams } =
+        await recalculateCountryScoresFromMatches();
 
-      setDraftOverrides((prev) => ({
-        ...prev,
-        [match.id]: {
-          manual_home_score: "",
-          manual_away_score: "",
-          manual_winner: "",
-        },
-      }));
+      await refreshMatchesOnPage();
+
+      if (Object.keys(calculatedScores).length === 0) {
+        setSaveMessage(
+          "Manual override cleared, but no leaderboard scores were calculated yet."
+        );
+        return;
+      }
 
       setSaveMessage(
-        "Manual override cleared. Click Update Leaderboard Scores to apply the API value to the leaderboard."
+        buildLeaderboardMessage(
+          "Manual override cleared.",
+          calculatedScores,
+          updatedRows,
+          missingTeams
+        )
       );
     } catch (error) {
       console.error(error);
-      setSaveError("There was a problem clearing the manual override.");
+      setSaveError(
+        error?.message ||
+          "There was a problem clearing the manual override and updating the leaderboard."
+      );
     } finally {
       setSavingMatchId("");
+      setUpdatingScores(false);
     }
   };
 
@@ -392,9 +403,7 @@ export default function AdminPage({ goBack }) {
     return (
       <section className="page-section admin-page">
         <h2>Admin - Fixtures & Results</h2>
-
         <p className="page-intro">Loading synced match data...</p>
-
         <button type="button" onClick={goBack}>
           Back
         </button>
@@ -754,7 +763,6 @@ export default function AdminPage({ goBack }) {
           onChange={(event) => setSelectedDate(event.target.value)}
         >
           <option value="">All Dates</option>
-
           {availableDates.map((date) => (
             <option key={date} value={date}>
               {date}
@@ -770,7 +778,6 @@ export default function AdminPage({ goBack }) {
       </div>
 
       {saveMessage && <p className="success-message">{saveMessage}</p>}
-
       {saveError && <p className="error-message">{saveError}</p>}
 
       {filteredMatches.length === 0 ? (
@@ -813,10 +820,7 @@ export default function AdminPage({ goBack }) {
                     <div className="admin-api-score-line">
                       <span>API Score</span>
                       <strong>
-                        {formatScore(
-                          match.api_home_score,
-                          match.api_away_score
-                        )}
+                        {formatScore(match.api_home_score, match.api_away_score)}
                       </strong>
                     </div>
 
@@ -893,15 +897,11 @@ export default function AdminPage({ goBack }) {
                       </option>
 
                       {match.home_team && (
-                        <option value={match.home_team}>
-                          {match.home_team}
-                        </option>
+                        <option value={match.home_team}>{match.home_team}</option>
                       )}
 
                       {match.away_team && (
-                        <option value={match.away_team}>
-                          {match.away_team}
-                        </option>
+                        <option value={match.away_team}>{match.away_team}</option>
                       )}
                     </select>
 

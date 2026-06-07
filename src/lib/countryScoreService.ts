@@ -167,61 +167,105 @@ function addPoints(scores: CountryScoreMap, team: string | null, points: number)
   scores[cleanTeam] = (scores[cleanTeam] || 0) + Number(points || 0);
 }
 
+function ensureTeamExists(scores: CountryScoreMap, team: string | null) {
+  if (!team) {
+    return;
+  }
+
+  const cleanTeam = String(team).trim();
+
+  if (!cleanTeam) {
+    return;
+  }
+
+  if (scores[cleanTeam] === undefined) {
+    scores[cleanTeam] = 0;
+  }
+}
+
+function addKnockoutAppearancePoints(
+  scores: CountryScoreMap,
+  stage: string,
+  home: string | null,
+  away: string | null
+) {
+  if (stage === "R32") {
+    addPoints(scores, home, 5);
+    addPoints(scores, away, 5);
+  }
+
+  if (stage === "R16") {
+    addPoints(scores, home, 10);
+    addPoints(scores, away, 10);
+  }
+
+  if (stage === "QF") {
+    addPoints(scores, home, 20);
+    addPoints(scores, away, 20);
+  }
+
+  if (stage === "SF") {
+    addPoints(scores, home, 40);
+    addPoints(scores, away, 40);
+  }
+
+  if (stage === "FINAL") {
+    addPoints(scores, home, 80);
+    addPoints(scores, away, 80);
+  }
+}
+
+function addWinnerPoints(
+  scores: CountryScoreMap,
+  stage: string,
+  winner: string | null
+) {
+  if (winner && stage === "3RD") {
+    addPoints(scores, winner, 40);
+  }
+
+  if (winner && stage === "FINAL") {
+    addPoints(scores, winner, 160);
+  }
+}
+
 function calculateScoresFromMatches(matches: MatchRow[]) {
   const scores: CountryScoreMap = {};
 
   matches.forEach((match) => {
-    const homeScore = getFinalHomeScore(match);
-    const awayScore = getFinalAwayScore(match);
-
-    if (homeScore === null || awayScore === null) {
-      return;
-    }
-
     const home = match.home_team;
     const away = match.away_team;
     const stage = getStageKey(match);
-
-    // 1 point per goal scored.
-    // Penalty shootout goals should not be included here.
-    addPoints(scores, home, homeScore);
-    addPoints(scores, away, awayScore);
-
-    // Group games get goal points only.
-    // Knockout games get goal points + round appearance points.
-    if (stage === "R32") {
-      addPoints(scores, home, 5);
-      addPoints(scores, away, 5);
-    }
-
-    if (stage === "R16") {
-      addPoints(scores, home, 10);
-      addPoints(scores, away, 10);
-    }
-
-    if (stage === "QF") {
-      addPoints(scores, home, 20);
-      addPoints(scores, away, 20);
-    }
-
-    if (stage === "SF") {
-      addPoints(scores, home, 40);
-      addPoints(scores, away, 40);
-    }
-
-    if (stage === "FINAL") {
-      addPoints(scores, home, 80);
-      addPoints(scores, away, 80);
-    }
-
     const winner = getFinalWinner(match);
+    const homeScore = getFinalHomeScore(match);
+    const awayScore = getFinalAwayScore(match);
 
-    if (winner && stage === "3RD") {
-      addPoints(scores, winner, 40);
+    const hasBothTeams = Boolean(home && away);
+    const hasBothScores = homeScore !== null && awayScore !== null;
+
+    if (!hasBothTeams) {
+      return;
     }
 
-    if (winner && stage === "FINAL") {
-      addPoints(scores, winner, 160);
+    if (hasBothScores) {
+      ensureTeamExists(scores, home);
+      ensureTeamExists(scores, away);
+
+      // 1 point per goal scored.
+      // Penalty shootout goals should not be included here.
+      addPoints(scores, home, homeScore);
+      addPoints(scores, away, awayScore);
+
+      // Group games get goal points only.
+      // Knockout games get goal points + round appearance points.
+      addKnockoutAppearancePoints(scores, stage, home, away);
+    }
+
+    // Winner-only overrides can still apply final/third-place winner bonuses.
+    // They cannot create goal points unless both scores are entered.
+    if (winner) {
+      ensureTeamExists(scores, winner);
+      addWinnerPoints(scores, stage, winner);
     }
   });
 
@@ -257,27 +301,50 @@ export async function updateCountryScores(
   }
 
   const existingTeams = existingCountries || [];
-  const existingTeamNames = new Set(existingTeams.map((row) => row.team));
 
-  const missingTeams = Object.keys(cleanCalculatedScores).filter(
-    (team) => !existingTeamNames.has(team)
-  );
+  /*
+    Build the union of:
+    1. teams already in scores
+    2. teams calculated from matches
+
+    This allows scores to be populated even when the scores table starts empty.
+  */
+  const allTeamNames = new Set<string>();
+
+  existingTeams.forEach((row) => {
+    const cleanTeam = String(row.team || "").trim();
+
+    if (cleanTeam) {
+      allTeamNames.add(cleanTeam);
+    }
+  });
+
+  Object.keys(cleanCalculatedScores).forEach((team) => {
+    const cleanTeam = String(team || "").trim();
+
+    if (cleanTeam) {
+      allTeamNames.add(cleanTeam);
+    }
+  });
 
   const now = new Date().toISOString();
 
-  const rowsToUpdate: CountryScoreRow[] = existingTeams.map((row) => {
-    const team = row.team;
+  const rowsToUpsert: CountryScoreRow[] = [...allTeamNames].map((team) => ({
+    team,
+    points: cleanCalculatedScores[team] ?? 0,
+    updated_at: now,
+  }));
 
+  if (rowsToUpsert.length === 0) {
     return {
-      team,
-      points: cleanCalculatedScores[team] ?? 0,
-      updated_at: now,
+      updatedRows: [],
+      missingTeams: [],
     };
-  });
+  }
 
   const { data: updatedRows, error: updateError } = await supabase
     .from(COUNTRY_SCORES_TABLE)
-    .upsert(rowsToUpdate, { onConflict: "team" })
+    .upsert(rowsToUpsert, { onConflict: "team" })
     .select("team, points, updated_at");
 
   if (updateError) {
@@ -286,7 +353,7 @@ export async function updateCountryScores(
 
   return {
     updatedRows: updatedRows || [],
-    missingTeams,
+    missingTeams: [],
   };
 }
 
