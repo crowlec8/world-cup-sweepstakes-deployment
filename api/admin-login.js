@@ -1,3 +1,5 @@
+import crypto from "crypto";
+
 function constantTimeEqual(a, b) {
   const aBuffer = Buffer.from(a);
   const bBuffer = Buffer.from(b);

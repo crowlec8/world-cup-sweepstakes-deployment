@@ -29,6 +29,18 @@ export default function AdminLoginPage({ onLogin }) {
         }),
       });
 
+      const contentType = response.headers.get("content-type") || "";
+
+      if (!contentType.includes("application/json")) {
+        const text = await response.text();
+        console.error("Admin login returned non-JSON response:", text);
+
+        setError(
+          "Admin login API did not return JSON. Check that the Vercel API route is running."
+        );
+        return;
+      }
+
       const data = await response.json();
 
       if (!response.ok || !data.success) {
@@ -40,8 +52,8 @@ export default function AdminLoginPage({ onLogin }) {
       setError("");
       onLogin();
     } catch (err) {
-      console.error(err);
-      setError("Something went wrong. Please try again.");
+      console.error("Admin login failed:", err);
+      setError("Could not reach the admin login API.");
     } finally {
       setLoggingIn(false);
     }
