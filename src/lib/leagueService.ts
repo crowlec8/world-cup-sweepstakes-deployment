@@ -33,11 +33,11 @@ export async function getLeagueByCode(code: string) {
 /**
  * Get league by id
  */
-export async function getLeagueById(leagueId: string) {
+export async function getLeagueById(id: string) {
   const { data, error } = await supabase
     .from("leagues")
     .select("*")
-    .eq("id", leagueId)
+    .eq("id", id)
     .single();
 
   if (error) return null;

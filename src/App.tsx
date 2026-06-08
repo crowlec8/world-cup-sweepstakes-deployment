@@ -128,6 +128,11 @@ function cleanPath(pathname: string) {
   return cleaned || "/";
 }
 
+function getLeaderboardPath(leagueId: string | null) {
+  if (!leagueId) return "/";
+  return `/leaderboard/${encodeURIComponent(leagueId)}`;
+}
+
 export default function App() {
   const [view, setView] = useState<View>("name");
   const [nameInput, setNameInput] = useState("");
@@ -176,7 +181,7 @@ export default function App() {
     const nextDrawSourceView = options?.drawSourceView ?? drawSourceView;
 
     if (nextView === "leaderboard") {
-      return nextLeagueId ? `/leaderboard/${nextLeagueId}` : "/leaderboard";
+      return getLeaderboardPath(nextLeagueId);
     }
 
     if (nextView === "draw") {
@@ -235,11 +240,13 @@ export default function App() {
       }
 
       if (path === "/create-league") {
+        setDrawSourceView("createLeague");
         setView("createLeague");
         return;
       }
 
       if (path === "/join-league") {
+        setDrawSourceView("joinLeague");
         setView("joinLeague");
         return;
       }
@@ -255,33 +262,33 @@ export default function App() {
       }
 
       if (path.startsWith("/leaderboard/")) {
-        const routeLeagueId = path.split("/")[2];
+        const routeLeagueId = decodeURIComponent(path.split("/")[2] || "");
 
         if (!routeLeagueId) {
+          window.history.replaceState(null, "", "/");
           setView("name");
           return;
         }
 
         try {
-          const [league, players] = await Promise.all([
-            getLeagueById(routeLeagueId),
-            getPlayersByLeagueId(routeLeagueId),
-          ]);
+          const league = await getLeagueById(routeLeagueId);
 
           if (!league) {
-            setView("name");
             window.history.replaceState(null, "", "/");
+            setView("name");
             return;
           }
 
-          setLeagueId(routeLeagueId);
+          const players = await getPlayersByLeagueId(league.id);
+
+          setLeagueId(league.id);
           setLeagueName(league.name);
           setLeaderboard(players);
           setView("leaderboard");
         } catch (error) {
           console.error(error);
-          setView("name");
           window.history.replaceState(null, "", "/");
+          setView("name");
         }
 
         return;
