@@ -11,6 +11,7 @@ export async function createLeagueDB(name: string, code: string) {
     .single();
 
   if (error) throw error;
+
   return data;
 }
 
@@ -25,6 +26,22 @@ export async function getLeagueByCode(code: string) {
     .single();
 
   if (error) return null;
+
+  return data;
+}
+
+/**
+ * Get league by id
+ */
+export async function getLeagueById(leagueId: string) {
+  const { data, error } = await supabase
+    .from("leagues")
+    .select("*")
+    .eq("id", leagueId)
+    .single();
+
+  if (error) return null;
+
   return data;
 }
 

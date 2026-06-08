@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import "./styles/main.css";
-
 import NamePage from "./pages/NamePage";
 import LeagueChoicePage from "./pages/LeagueChoicePage";
 import CreateLeaguePage from "./pages/CreateLeaguePage";
@@ -12,12 +11,12 @@ import LeaderboardPage from "./pages/LeaderboardPage";
 import CountriesPage from "./pages/CountriesPage";
 import AdminPage from "./pages/AdminPage";
 import AdminLoginPage from "./pages/AdminLoginPage";
-
 import ScoringRules from "./components/ScoringRules";
 
 import {
   createLeagueDB,
   getLeagueByCode,
+  getLeagueById,
   getPlayersByLeagueId,
   addPlayerToLeague,
   clearLeaguePlayers,
@@ -34,6 +33,8 @@ type View =
   | "countries"
   | "admin"
   | "adminLogin";
+
+type DrawSourceView = "createLeague" | "joinLeague";
 
 type Entry = {
   name: string;
@@ -107,8 +108,24 @@ const TOTAL_POSSIBLE_COMBINATIONS = POOLS.reduce(
   1
 );
 
+const ROUTES = {
+  name: "/",
+  leagueChoice: "/league-choice",
+  createLeague: "/create-league",
+  joinLeague: "/join-league",
+  viewExistingLeague: "/view-existing-league",
+  countries: "/countries",
+  admin: "/admin23",
+  adminLogin: "/admin23",
+};
+
 function combinationKey(teams: string[]) {
   return teams.join("|");
+}
+
+function cleanPath(pathname: string) {
+  const cleaned = pathname.replace(/\/+$/, "");
+  return cleaned || "/";
 }
 
 export default function App() {
@@ -130,10 +147,12 @@ export default function App() {
   const [hasSpun, setHasSpun] = useState(false);
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
   const [showRules, setShowRules] = useState(false);
-  const [countriesReturnView, setCountriesReturnView] = useState<View>("name");
+  const [countriesReturnView, setCountriesReturnView] =
+    useState<View>("name");
+  const [drawSourceView, setDrawSourceView] =
+    useState<DrawSourceView>("createLeague");
 
   const intervalRefs = useRef<number[]>([]);
-
   const canContinue = nameInput.trim().length > 0;
 
   const currentEntry = useMemo(() => {
@@ -146,6 +165,50 @@ export default function App() {
     };
   }, [playerName, selectedTeams]);
 
+  const getPathForView = (
+    nextView: View,
+    options?: {
+      leagueId?: string | null;
+      drawSourceView?: DrawSourceView;
+    }
+  ) => {
+    const nextLeagueId = options?.leagueId ?? leagueId;
+    const nextDrawSourceView = options?.drawSourceView ?? drawSourceView;
+
+    if (nextView === "leaderboard") {
+      return nextLeagueId ? `/leaderboard/${nextLeagueId}` : "/leaderboard";
+    }
+
+    if (nextView === "draw") {
+      return nextDrawSourceView === "joinLeague"
+        ? ROUTES.joinLeague
+        : ROUTES.createLeague;
+    }
+
+    return ROUTES[nextView] || "/";
+  };
+
+  const navigateToView = (
+    nextView: View,
+    options?: {
+      leagueId?: string | null;
+      drawSourceView?: DrawSourceView;
+      replace?: boolean;
+    }
+  ) => {
+    const nextPath = getPathForView(nextView, options);
+
+    if (cleanPath(window.location.pathname) !== nextPath) {
+      if (options?.replace) {
+        window.history.replaceState(null, "", nextPath);
+      } else {
+        window.history.pushState(null, "", nextPath);
+      }
+    }
+
+    setView(nextView);
+  };
+
   useEffect(() => {
     return () => {
       intervalRefs.current.forEach((id) => window.clearInterval(id));
@@ -153,10 +216,79 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const syncPathToView = () => {
-      if (window.location.pathname === "/admin23") {
+    const syncPathToView = async () => {
+      const path = cleanPath(window.location.pathname);
+
+      if (path === "/admin23") {
         setView(isAdminAuthenticated ? "admin" : "adminLogin");
+        return;
       }
+
+      if (path === "/") {
+        setView("name");
+        return;
+      }
+
+      if (path === "/league-choice") {
+        setView("leagueChoice");
+        return;
+      }
+
+      if (path === "/create-league") {
+        setView("createLeague");
+        return;
+      }
+
+      if (path === "/join-league") {
+        setView("joinLeague");
+        return;
+      }
+
+      if (path === "/view-existing-league") {
+        setView("viewExistingLeague");
+        return;
+      }
+
+      if (path === "/countries") {
+        setView("countries");
+        return;
+      }
+
+      if (path.startsWith("/leaderboard/")) {
+        const routeLeagueId = path.split("/")[2];
+
+        if (!routeLeagueId) {
+          setView("name");
+          return;
+        }
+
+        try {
+          const [league, players] = await Promise.all([
+            getLeagueById(routeLeagueId),
+            getPlayersByLeagueId(routeLeagueId),
+          ]);
+
+          if (!league) {
+            setView("name");
+            window.history.replaceState(null, "", "/");
+            return;
+          }
+
+          setLeagueId(routeLeagueId);
+          setLeagueName(league.name);
+          setLeaderboard(players);
+          setView("leaderboard");
+        } catch (error) {
+          console.error(error);
+          setView("name");
+          window.history.replaceState(null, "", "/");
+        }
+
+        return;
+      }
+
+      window.history.replaceState(null, "", "/");
+      setView("name");
     };
 
     syncPathToView();
@@ -207,50 +339,46 @@ export default function App() {
 
   const handleBack = () => {
     if (view === "admin" || view === "adminLogin") {
-      window.history.replaceState(null, "", "/");
-
-      setView(
+      navigateToView(
         playerName && leaguePassword
           ? "draw"
           : playerName
           ? "leagueChoice"
-          : "name"
+          : "name",
+        { replace: true }
       );
-
       return;
     }
 
     if (view === "countries") {
       if (countriesReturnView === "leaderboard") {
-        setView("leaderboard");
+        navigateToView("leaderboard");
         return;
       }
 
-      setView(
+      navigateToView(
         playerName && leaguePassword
           ? "draw"
           : playerName
           ? "leagueChoice"
           : "name"
       );
-
       return;
     }
 
     if (view === "leaderboard") {
-      setView(
+      navigateToView(
         playerName && leaguePassword
           ? "draw"
           : playerName
           ? "leagueChoice"
           : "name"
       );
-
       return;
     }
 
     if (view === "draw") {
-      setView("leagueChoice");
+      navigateToView("leagueChoice");
       return;
     }
 
@@ -259,12 +387,12 @@ export default function App() {
       view === "joinLeague" ||
       view === "viewExistingLeague"
     ) {
-      setView(playerName ? "leagueChoice" : "name");
+      navigateToView(playerName ? "leagueChoice" : "name");
       return;
     }
 
     if (view === "leagueChoice") {
-      setView("name");
+      navigateToView("name");
     }
   };
 
@@ -276,12 +404,12 @@ export default function App() {
     if (!cleanName) return;
 
     setPlayerName(cleanName);
-    setView("leagueChoice");
+    navigateToView("leagueChoice");
   };
 
   const handleAdminLogin = () => {
     setIsAdminAuthenticated(true);
-    setView("admin");
+    navigateToView("admin");
   };
 
   const handleCreateLeague = async (
@@ -312,7 +440,11 @@ export default function App() {
       setDisplayIndexes([0, 0, 0, 0]);
       setHasSpun(false);
       setSpinning(false);
-      setView("draw");
+      setDrawSourceView("createLeague");
+      navigateToView("draw", {
+        leagueId: newLeague.id,
+        drawSourceView: "createLeague",
+      });
 
       return "success";
     } catch (error) {
@@ -350,7 +482,11 @@ export default function App() {
       setDisplayIndexes([0, 0, 0, 0]);
       setHasSpun(false);
       setSpinning(false);
-      setView("draw");
+      setDrawSourceView("joinLeague");
+      navigateToView("draw", {
+        leagueId: league.id,
+        drawSourceView: "joinLeague",
+      });
 
       return "success";
     } catch (error) {
@@ -397,7 +533,6 @@ export default function App() {
       setSelectedTeams(existingPlayer.teams || [null, null, null, null]);
       setHasSpun(true);
       setSpinning(false);
-
       setDisplayIndexes(
         (existingPlayer.teams || []).map((team, poolIndex) => {
           const idx = POOLS[poolIndex]?.indexOf(team);
@@ -405,7 +540,7 @@ export default function App() {
         })
       );
 
-      setView("leaderboard");
+      navigateToView("leaderboard", { leagueId: league.id });
 
       return "success";
     } catch (error) {
@@ -499,7 +634,8 @@ export default function App() {
             return idx >= 0 ? idx : 0;
           })
         );
-        setView("leaderboard");
+
+        navigateToView("leaderboard", { leagueId });
         return;
       }
 
@@ -602,7 +738,7 @@ export default function App() {
                   try {
                     const players = await getPlayersByLeagueId(leagueId);
                     setLeaderboard(players);
-                    setView("leaderboard");
+                    navigateToView("leaderboard", { leagueId });
                   } catch (error) {
                     console.error(error);
                     alert("There was a problem loading the leaderboard.");
@@ -625,7 +761,7 @@ export default function App() {
                 className="btn btn-secondary"
                 onClick={() => {
                   setCountriesReturnView(view);
-                  setView("countries");
+                  navigateToView("countries");
                 }}
               >
                 Teams
@@ -646,15 +782,15 @@ export default function App() {
             setNameInput={setNameInput}
             startGame={startGame}
             canContinue={canContinue}
-            onViewExistingLeague={() => setView("viewExistingLeague")}
+            onViewExistingLeague={() => navigateToView("viewExistingLeague")}
           />
         )}
 
         {view === "leagueChoice" && (
           <LeagueChoicePage
-            onCreate={() => setView("createLeague")}
-            onJoin={() => setView("joinLeague")}
-            onViewExistingLeague={() => setView("viewExistingLeague")}
+            onCreate={() => navigateToView("createLeague")}
+            onJoin={() => navigateToView("joinLeague")}
+            onViewExistingLeague={() => navigateToView("viewExistingLeague")}
           />
         )}
 
@@ -669,7 +805,7 @@ export default function App() {
           <JoinLeaguePage
             onJoin={handleJoinLeague}
             playerName={playerName}
-            onViewExistingLeague={() => setView("viewExistingLeague")}
+            onViewExistingLeague={() => navigateToView("viewExistingLeague")}
           />
         )}
 
