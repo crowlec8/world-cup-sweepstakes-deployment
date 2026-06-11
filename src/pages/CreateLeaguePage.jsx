@@ -1,11 +1,22 @@
 import { useState } from "react";
+import {
+  areSweepstakesEntriesClosed,
+  ENTRY_CLOSED_MESSAGE,
+} from "../utils/entryDeadline";
 
 export default function CreateLeaguePage({ onCreate, playerName }) {
   const [leagueName, setLeagueName] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
+  const entriesClosed = areSweepstakesEntriesClosed();
+
   const handleCreate = async () => {
+    if (entriesClosed) {
+      setError(ENTRY_CLOSED_MESSAGE);
+      return;
+    }
+
     const cleanName = leagueName.trim();
     const cleanPassword = password.trim();
 
@@ -24,6 +35,11 @@ export default function CreateLeaguePage({ onCreate, playerName }) {
         return;
       }
 
+      if (result === "closed") {
+        setError(ENTRY_CLOSED_MESSAGE);
+        return;
+      }
+
       setError("");
     } catch (err) {
       console.error(err);
@@ -35,12 +51,23 @@ export default function CreateLeaguePage({ onCreate, playerName }) {
     <section className="panel hero">
       <h2>Create a League</h2>
 
+      {entriesClosed && (
+        <>
+          <p className="subtext">{ENTRY_CLOSED_MESSAGE}</p>
+          <p className="subtext">
+            You can still view an existing league if you already entered before
+            the deadline.
+          </p>
+        </>
+      )}
+
       <input
         className="input"
         placeholder="Enter league name"
         value={leagueName}
         onChange={(e) => setLeagueName(e.target.value)}
         style={{ marginTop: 12 }}
+        disabled={entriesClosed}
       />
 
       <input
@@ -49,9 +76,9 @@ export default function CreateLeaguePage({ onCreate, playerName }) {
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         style={{ marginTop: 12 }}
+        disabled={entriesClosed}
       />
 
-      {/* ✅ Error message */}
       {error && (
         <p style={{ color: "#ef4444", marginTop: 10 }}>
           {error}
@@ -62,8 +89,9 @@ export default function CreateLeaguePage({ onCreate, playerName }) {
         className="btn btn-primary"
         style={{ marginTop: 16 }}
         onClick={handleCreate}
+        disabled={entriesClosed}
       >
-        Create League
+        {entriesClosed ? "Entries Closed" : "Create League"}
       </button>
     </section>
   );
